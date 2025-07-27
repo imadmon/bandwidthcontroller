@@ -26,7 +26,7 @@ Unlike naive rate limiters, `bandwidthcontroller` adapts _on-the-fly_ using the 
 
 ## Why it matters
 
-If all your incoming data is uniform — same size, format and timing, you probably don’t need this. You barely even need a protocol. But in real-world applications where stream sizes vary, formats differ, and you want to keep bandwidth under control while maximizing throughput — **this is the solution**.
+If all your incoming data is uniform - same size, format and timing, you probably don’t need this. You barely even need a protocol. But in real-world applications where stream sizes vary, formats differ, and you want to keep bandwidth under control while maximizing throughput - **this is the solution**.
 
 It strikes the perfect balance between **efficiency** and **generality**, so you can stop worrying about data starvation or stuck streams.
 

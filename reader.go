@@ -8,7 +8,7 @@ import (
 )
 
 type FileReader struct {
-	reader    *limitedreader.RateLimitedReader
+	reader    *limitedreader.LimitedReader
 	bytesRead int64
 	rateLimit int64
 	callback  func() // called on Close
@@ -16,14 +16,14 @@ type FileReader struct {
 
 func NewFileReader(r io.Reader, limit int64, callback func()) *FileReader {
 	return &FileReader{
-		reader:   limitedreader.NewRateLimitedReader(r, limit),
+		reader:   limitedreader.NewLimitedReader(r, limit),
 		callback: callback,
 	}
 }
 
 func NewFileReadCloser(r io.ReadCloser, limit int64, callback func()) *FileReader {
 	return &FileReader{
-		reader:   limitedreader.NewRateLimitedReadCloser(r, limit),
+		reader:   limitedreader.NewLimitedReadCloser(r, limit),
 		callback: callback,
 	}
 }
