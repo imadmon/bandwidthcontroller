@@ -1,6 +1,7 @@
 package bandwidthcontroller
 
 import (
+	"fmt"
 	"io"
 	"sync/atomic"
 
@@ -9,7 +10,6 @@ import (
 
 type FileReadCloser struct {
 	reader    *limitedreader.LimitedReader
-	bytesRead atomic.Int64
 	rateLimit atomic.Int64
 	callback  func() // called on Close
 }
@@ -23,7 +23,6 @@ func NewFileReadCloser(r io.ReadCloser, limit int64, callback func()) *FileReadC
 
 func (fr *FileReadCloser) Read(p []byte) (n int, err error) {
 	n, err = fr.reader.Read(p)
-	fr.bytesRead.Add(int64(n))
 	return n, err
 }
 
@@ -38,6 +37,11 @@ func (fr *FileReadCloser) Close() error {
 }
 
 func (fr *FileReadCloser) UpdateRateLimit(newLimit int64) {
+	if newLimit > 0 {
+		fmt.Printf("file new ratelimit: %v, will take %v seconds to finish, already read: %v\n", newLimit, ((1024-fr.GetBytesRead())/newLimit)+1, fr.GetBytesRead())
+	} else {
+		fmt.Printf("file new ratelimit: 0, already read: %v\n", fr.GetBytesRead())
+	}
 	fr.rateLimit.Store(newLimit)
 	fr.reader.UpdateLimit(newLimit)
 }
@@ -47,5 +51,5 @@ func (fr *FileReadCloser) GetRateLimit() int64 {
 }
 
 func (fr *FileReadCloser) GetBytesRead() int64 {
-	return fr.bytesRead.Load()
+	return fr.reader.GetTotalRead()
 }

@@ -137,6 +137,31 @@ func TestBandwidthControllerFilesCloseBandwidthAllocation(t *testing.T) {
 	validateEmpty(t, bc)
 }
 
+func TestBandwidthControllerStableThroughput(t *testing.T) {
+	const fileSize = 1 * 1024 // 1 KB
+	const fileAmountPerSecond = 2
+	const totalFileAmount = 10
+	const bandwidth = fileSize // will take (fileSize * totalFileAmount)/bandwidth seconds
+
+	bc := NewBandwidthController(int64(bandwidth))
+	stopC := make(chan struct{})
+	doneC := make(chan struct{})
+	fileSizeUpdateC := make(chan int, 1)
+	fileAmountPerIntervalUpdateC := make(chan int, 1)
+	fileSizeUpdateC <- fileSize
+	fileAmountPerIntervalUpdateC <- fileAmountPerSecond
+
+	start := time.Now()
+
+	go continuouslyAppendFiles(t, bc, stopC, doneC, fileSizeUpdateC, fileAmountPerIntervalUpdateC)
+	time.Sleep((totalFileAmount / fileAmountPerSecond) * time.Second)
+	stopC <- struct{}{}
+	<-doneC
+
+	assertReadTimes(t, time.Since(start), totalFileAmount, totalFileAmount+1)
+	validateEmpty(t, bc)
+}
+
 func readAllFiles(t *testing.T, files []*File) {
 	var wg sync.WaitGroup
 	for _, f := range files {
@@ -193,4 +218,45 @@ func validateFileBandwidth(t *testing.T, fileName string, fileBandwidth, expecte
 
 func emptyBandwidthController(bc *BandwidthController) {
 	bc.files = make(map[uuid.UUID]*File)
+}
+
+func continuouslyAppendFiles(t *testing.T, bc *BandwidthController, stopC, doneC chan struct{}, fileSizeUpdateC, fileAmountPerIntervalUpdateC chan int) {
+	var fileSize int
+	var fileAmountPerInterval int
+	var i int
+	var wg sync.WaitGroup
+	ticker := time.NewTicker(time.Second)
+	start := time.Now()
+	for {
+		select {
+		case <-stopC:
+			fmt.Printf("stop was called after: %v\n", time.Since(start))
+			ticker.Stop()
+			wg.Wait()
+			fmt.Printf("finish after: %v\n", time.Since(start))
+			doneC <- struct{}{}
+			return
+		case size := <-fileSizeUpdateC:
+			fileSize = size
+		case amountPerInterval := <-fileAmountPerIntervalUpdateC:
+			fileAmountPerInterval = amountPerInterval
+		case <-ticker.C:
+			i++
+			fmt.Printf("sending files #%d\n", i)
+			if fileSize <= 0 || fileAmountPerInterval <= 0 {
+				continue
+			}
+
+			for i := 0; i < fileAmountPerInterval; i++ {
+				wg.Add(1)
+				go appendAndReadFile(t, bc, fileSize, &wg)
+			}
+		}
+	}
+}
+
+func appendAndReadFile(t *testing.T, bc *BandwidthController, fileSize int, wg *sync.WaitGroup) {
+	file := bc.AppendFileReader(bytes.NewReader(make([]byte, fileSize)), int64(fileSize))
+	readFile(t, file)
+	wg.Done()
 }

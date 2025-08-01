@@ -30,8 +30,7 @@ func TestUtilsGetFilesSortedWeights(t *testing.T) {
 func TestUtilsGetFilesSortedWeightsEmptyOnFinish(t *testing.T) {
 	files := make(map[uuid.UUID]*File)
 	for i := 5; i > 0; i-- {
-		file := NewFile(NewFileReadCloser(nil, 0, nil), int64(i))
-		file.Reader.bytesRead.Add(file.Size)
+		file := NewFile(NewFileReadCloser(nil, 0, nil), 0)
 		files[uuid.New()] = file
 	}
 

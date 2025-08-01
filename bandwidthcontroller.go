@@ -1,10 +1,15 @@
 package bandwidthcontroller
 
 import (
+	"fmt"
 	"io"
 	"sync"
 
 	"github.com/google/uuid"
+)
+
+var (
+	MinFileLimitPrecentage int64 = 10 // 0<<100
 )
 
 type BandwidthController struct {
@@ -48,14 +53,24 @@ func (bc *BandwidthController) removeFile(fileID uuid.UUID) {
 }
 
 func (bc *BandwidthController) updateLimits() {
+	fmt.Println("updating...")
 	weights, totalWeight := getFilesSortedWeights(bc.files)
 	totalBandwidth := bc.bandwidth
 	for _, fileWeightPair := range weights {
 		ratio := fileWeightPair.weight / totalWeight
 		totalWeight -= fileWeightPair.weight
 		newLimit := int64(float64(totalBandwidth) * ratio)
-		if newLimit > bc.files[fileWeightPair.id].Size {
-			newLimit = bc.files[fileWeightPair.id].Size
+		file := bc.files[fileWeightPair.id]
+		bytesLeft := file.Size - file.Reader.GetBytesRead()
+		minLimit := file.Size / MinFileLimitPrecentage
+		if newLimit > bytesLeft {
+			newLimit = bytesLeft
+		}
+		if newLimit < minLimit {
+			newLimit = minLimit
+		}
+		if newLimit > totalBandwidth {
+			newLimit = totalBandwidth
 		}
 
 		totalBandwidth -= newLimit

@@ -42,3 +42,6 @@ Thumbs.db
 
 # Node modules if used for frontend
 node_modules/
+
+# Scripts
+test-for-races*
