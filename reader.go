@@ -7,34 +7,27 @@ import (
 	"github.com/imadmon/limitedreader"
 )
 
-type FileReader struct {
+type FileReadCloser struct {
 	reader    *limitedreader.LimitedReader
-	bytesRead int64
-	rateLimit int64
+	bytesRead atomic.Int64
+	rateLimit atomic.Int64
 	callback  func() // called on Close
 }
 
-func NewFileReader(r io.Reader, limit int64, callback func()) *FileReader {
-	return &FileReader{
-		reader:   limitedreader.NewLimitedReader(r, limit),
-		callback: callback,
-	}
-}
-
-func NewFileReadCloser(r io.ReadCloser, limit int64, callback func()) *FileReader {
-	return &FileReader{
+func NewFileReadCloser(r io.ReadCloser, limit int64, callback func()) *FileReadCloser {
+	return &FileReadCloser{
 		reader:   limitedreader.NewLimitedReadCloser(r, limit),
 		callback: callback,
 	}
 }
 
-func (fr *FileReader) Read(p []byte) (n int, err error) {
+func (fr *FileReadCloser) Read(p []byte) (n int, err error) {
 	n, err = fr.reader.Read(p)
-	atomic.AddInt64(&fr.bytesRead, int64(n))
+	fr.bytesRead.Add(int64(n))
 	return n, err
 }
 
-func (fr *FileReader) Close() error {
+func (fr *FileReadCloser) Close() error {
 	err := fr.reader.Close()
 
 	if fr.callback != nil {
@@ -44,15 +37,15 @@ func (fr *FileReader) Close() error {
 	return err
 }
 
-func (fr *FileReader) UpdateRateLimit(newLimit int64) {
-	atomic.StoreInt64(&fr.rateLimit, newLimit)
+func (fr *FileReadCloser) UpdateRateLimit(newLimit int64) {
+	fr.rateLimit.Store(newLimit)
 	fr.reader.UpdateLimit(newLimit)
 }
 
-func (fr *FileReader) GetRateLimit() int64 {
-	return atomic.LoadInt64(&fr.rateLimit)
+func (fr *FileReadCloser) GetRateLimit() int64 {
+	return fr.rateLimit.Load()
 }
 
-func (fr *FileReader) BytesRead() int64 {
-	return atomic.LoadInt64(&fr.bytesRead)
+func (fr *FileReadCloser) GetBytesRead() int64 {
+	return fr.bytesRead.Load()
 }

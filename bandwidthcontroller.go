@@ -57,6 +57,7 @@ func (bc *BandwidthController) updateLimits() {
 		if newLimit > bc.files[fileWeightPair.id].Size {
 			newLimit = bc.files[fileWeightPair.id].Size
 		}
+
 		totalBandwidth -= newLimit
 		bc.files[fileWeightPair.id].Reader.UpdateRateLimit(newLimit)
 	}

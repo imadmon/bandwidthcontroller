@@ -1,11 +1,11 @@
 package bandwidthcontroller
 
 type File struct {
-	Reader *FileReader
+	Reader *FileReadCloser
 	Size   int64
 }
 
-func NewFile(reader *FileReader, fileSize int64) *File {
+func NewFile(reader *FileReadCloser, fileSize int64) *File {
 	return &File{
 		Reader: reader,
 		Size:   fileSize,
