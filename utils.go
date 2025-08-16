@@ -1,13 +1,11 @@
 package bandwidthcontroller
 
-import "github.com/google/uuid"
-
 type fileWeight struct {
-	id     uuid.UUID
+	id     int32
 	weight float64
 }
 
-func getFilesSortedWeights(files map[uuid.UUID]*File) ([]fileWeight, float64) {
+func getFilesSortedWeights(files map[int32]*File) ([]fileWeight, float64) {
 	weights := make([]fileWeight, 0)
 	totalWeight := 0.0
 	i := 0

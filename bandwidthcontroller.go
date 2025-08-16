@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"io"
 	"sync"
-
-	"github.com/google/uuid"
 )
 
 var (
@@ -13,14 +11,16 @@ var (
 )
 
 type BandwidthController struct {
-	files     map[uuid.UUID]*File
-	mu        sync.Mutex
-	bandwidth int64
+	files          map[int32]*File
+	mu             sync.Mutex
+	bandwidth      int64
+	fileCounter    int32
+	filesInSystems int32
 }
 
 func NewBandwidthController(bandwidth int64) *BandwidthController {
 	return &BandwidthController{
-		files:     make(map[uuid.UUID]*File),
+		files:     make(map[int32]*File),
 		bandwidth: bandwidth,
 	}
 }
@@ -30,22 +30,24 @@ func (bc *BandwidthController) AppendFileReader(r io.Reader, fileSize int64) *Fi
 }
 
 func (bc *BandwidthController) AppendFileReadCloser(r io.ReadCloser, fileSize int64) *File {
-	fileID := uuid.New()
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
+	bc.fileCounter++
+	fileID := bc.fileCounter
 	fileReader := NewFileReadCloser(r, bc.bandwidth, func() {
 		bc.removeFile(fileID)
 	})
 
 	file := NewFile(fileReader, fileSize)
-
-	bc.mu.Lock()
 	bc.files[fileID] = file
+
 	bc.updateLimits()
-	bc.mu.Unlock()
 
 	return file
 }
 
-func (bc *BandwidthController) removeFile(fileID uuid.UUID) {
+func (bc *BandwidthController) removeFile(fileID int32) {
 	bc.mu.Lock()
 	delete(bc.files, fileID)
 	bc.updateLimits()

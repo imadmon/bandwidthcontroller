@@ -2,15 +2,13 @@ package bandwidthcontroller
 
 import (
 	"testing"
-
-	"github.com/google/uuid"
 )
 
 func TestUtilsGetFilesSortedWeights(t *testing.T) {
-	files := make(map[uuid.UUID]*File)
+	files := make(map[int32]*File)
 	var expectedTotalWeight float64
 	for i := 5; i > 0; i-- {
-		files[uuid.New()] = NewFile(NewFileReadCloser(nil, 0, nil), int64(i))
+		files[int32(i)] = NewFile(NewFileReadCloser(nil, 0, nil), int64(i))
 		expectedTotalWeight += 1.0 / float64(i)
 	}
 
@@ -28,10 +26,10 @@ func TestUtilsGetFilesSortedWeights(t *testing.T) {
 }
 
 func TestUtilsGetFilesSortedWeightsEmptyOnFinish(t *testing.T) {
-	files := make(map[uuid.UUID]*File)
+	files := make(map[int32]*File)
 	for i := 5; i > 0; i-- {
 		file := NewFile(NewFileReadCloser(nil, 0, nil), 0)
-		files[uuid.New()] = file
+		files[int32(i)] = file
 	}
 
 	weights, totalWeights := getFilesSortedWeights(files)

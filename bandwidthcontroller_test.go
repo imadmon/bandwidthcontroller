@@ -8,8 +8,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 func TestBandwidthControllerMultipleSameSizeFiles(t *testing.T) {
@@ -217,7 +215,7 @@ func validateFileBandwidth(t *testing.T, fileName string, fileBandwidth, expecte
 }
 
 func emptyBandwidthController(bc *BandwidthController) {
-	bc.files = make(map[uuid.UUID]*File)
+	bc.files = make(map[int32]*File)
 }
 
 func continuouslyAppendFiles(t *testing.T, bc *BandwidthController, stopC, doneC chan struct{}, fileSizeUpdateC, fileAmountPerIntervalUpdateC chan int) {

@@ -1,6 +1,2 @@
-github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
-github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/imadmon/limitedreader v1.0.0 h1:4eqpT3LF7OY0tfVdAc2NYgGyahwsKORyBSqd7P2wTeo=
-github.com/imadmon/limitedreader v1.0.0/go.mod h1:SJaRSBqu/M5n0IXdIOdKOOkDoK+g3uZtKG0a7nuuWmE=
 github.com/imadmon/limitedreader v1.1.0 h1:nHfKX9ewX0nwd58OnC/3dihB0SYKOhahnwzfjGoF5M8=
 github.com/imadmon/limitedreader v1.1.0/go.mod h1:CL99Z1Eh4mwcABJQqIlIM0IY8+FZJ5idVLv32nAOijU=
