@@ -8,12 +8,8 @@ import (
 	"time"
 )
 
-var (
-	MinFileLimitPrecentage           int64 = 10 // 0<<100
-	LimitUpdaterIntervalMilliseconds int64 = 50
-)
-
 type BandwidthController struct {
+	cfg            Config
 	files          map[int64]*File
 	mu             sync.Mutex
 	bandwidth      int64
@@ -25,6 +21,7 @@ type BandwidthController struct {
 
 func NewBandwidthController(bandwidth int64, opts ...Option) *BandwidthController {
 	bc := &BandwidthController{
+		cfg:          defaultConfig(),
 		files:        make(map[int64]*File),
 		bandwidth:    bandwidth,
 		updaterStopC: make(chan struct{}),
@@ -88,7 +85,7 @@ func (bc *BandwidthController) GetCurrentFilesInSystem() int64 {
 }
 
 func (bc *BandwidthController) startLimitUpdater() {
-	ticker := time.NewTicker(time.Duration(LimitUpdaterIntervalMilliseconds) * time.Millisecond)
+	ticker := time.NewTicker(*bc.cfg.BandwidthUpdaterInterval)
 	for {
 		select {
 		case <-bc.updaterStopC:
@@ -117,7 +114,7 @@ func (bc *BandwidthController) updateLimits() {
 		if newLimit > bytesLeft {
 			newLimit = bytesLeft
 		}
-		minLimit := file.Size / MinFileLimitPrecentage
+		minLimit := int64(float64(file.Size) * *bc.cfg.MinFileBandwidthPercentage)
 		if newLimit < minLimit {
 			newLimit = minLimit
 		}

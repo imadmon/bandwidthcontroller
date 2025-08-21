@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -167,6 +168,80 @@ func TestBandwidthControllerContextCancelation(t *testing.T) {
 	validateEmpty(t, bc)
 }
 
+func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
+	defaultInterval := 200 * time.Millisecond
+	defaultPct := 0.10
+
+	cases := []struct {
+		name     string
+		input    Config
+		expected Config
+	}{
+		{
+			name:  "no overrides uses defaults",
+			input: Config{},
+			expected: Config{
+				BandwidthUpdaterInterval:   &defaultInterval,
+				MinFileBandwidthPercentage: &defaultPct,
+			},
+		},
+		{
+			name: "override only percentage",
+			input: func() Config {
+				p := 0.25
+				return Config{MinFileBandwidthPercentage: &p}
+			}(),
+			expected: func() Config {
+				p := 0.25
+				return Config{
+					BandwidthUpdaterInterval:   &defaultInterval,
+					MinFileBandwidthPercentage: &p,
+				}
+			}(),
+		},
+		{
+			name: "override only interval",
+			input: func() Config {
+				i := 500 * time.Millisecond
+				return Config{BandwidthUpdaterInterval: &i}
+			}(),
+			expected: func() Config {
+				i := 500 * time.Millisecond
+				return Config{
+					BandwidthUpdaterInterval:   &i,
+					MinFileBandwidthPercentage: &defaultPct,
+				}
+			}(),
+		},
+		{
+			name: "override both fields",
+			input: func() Config {
+				i := 1 * time.Second
+				p := 0.50
+				return Config{BandwidthUpdaterInterval: &i, MinFileBandwidthPercentage: &p}
+			}(),
+			expected: func() Config {
+				i := 1 * time.Second
+				p := 0.50
+				return Config{
+					BandwidthUpdaterInterval:   &i,
+					MinFileBandwidthPercentage: &p,
+				}
+			}(),
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			bc := NewBandwidthController(0, WithConfig(c.input))
+
+			if !reflect.DeepEqual(bc.cfg, c.expected) {
+				t.Fatalf("config mismatch\ngot:  %#v\nexpected: %#v", bc.cfg, c.expected)
+			}
+		})
+	}
+}
+
 func TestBandwidthControllerStableThroughput(t *testing.T) {
 	const fileSize = 1 * 1024 // 1 KB
 	const fileAmountPerSecond = 2
@@ -247,7 +322,7 @@ func validateFileBandwidth(t *testing.T, fileName string, fileBandwidth, expecte
 }
 
 func waitUntilLimitsAreUpdated() {
-	time.Sleep(time.Duration(LimitUpdaterIntervalMilliseconds+2) * time.Millisecond)
+	time.Sleep(*defaultConfig().BandwidthUpdaterInterval)
 }
 
 func emptyBandwidthController(bc *BandwidthController) {
