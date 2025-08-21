@@ -1,11 +1,11 @@
 package bandwidthcontroller
 
 type fileWeight struct {
-	id     int32
+	id     int64
 	weight float64
 }
 
-func getFilesSortedWeights(files map[int32]*File) ([]fileWeight, float64) {
+func getFilesSortedWeights(files map[int64]*File) ([]fileWeight, float64) {
 	weights := make([]fileWeight, 0)
 	totalWeight := 0.0
 	i := 0
