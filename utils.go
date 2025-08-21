@@ -1,5 +1,7 @@
 package bandwidthcontroller
 
+import "context"
+
 type fileWeight struct {
 	id     int64
 	weight float64
@@ -33,4 +35,13 @@ func insertSorted(weights []fileWeight, weight fileWeight, currentIndex int) []f
 
 	weights[i] = weight
 	return weights
+}
+
+func isContextCancelled(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
+	}
 }

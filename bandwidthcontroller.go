@@ -1,6 +1,7 @@
 package bandwidthcontroller
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"sync"
@@ -19,21 +20,33 @@ type BandwidthController struct {
 	fileCounter    int64
 	filesInSystems int64
 	updaterStopC   chan struct{}
+	ctx            context.Context
 }
 
-func NewBandwidthController(bandwidth int64) *BandwidthController {
-	return &BandwidthController{
+func NewBandwidthController(bandwidth int64, opts ...Option) *BandwidthController {
+	bc := &BandwidthController{
 		files:        make(map[int64]*File),
 		bandwidth:    bandwidth,
 		updaterStopC: make(chan struct{}),
+		ctx:          context.Background(),
 	}
+
+	for _, opt := range opts {
+		opt(bc)
+	}
+
+	return bc
 }
 
-func (bc *BandwidthController) AppendFileReader(r io.Reader, fileSize int64) *File {
+func (bc *BandwidthController) AppendFileReader(r io.Reader, fileSize int64) (*File, error) {
 	return bc.AppendFileReadCloser(io.NopCloser(r), fileSize)
 }
 
-func (bc *BandwidthController) AppendFileReadCloser(r io.ReadCloser, fileSize int64) *File {
+func (bc *BandwidthController) AppendFileReadCloser(r io.ReadCloser, fileSize int64) (*File, error) {
+	if isContextCancelled(bc.ctx) {
+		return nil, bc.ctx.Err()
+	}
+
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 
@@ -51,7 +64,7 @@ func (bc *BandwidthController) AppendFileReadCloser(r io.ReadCloser, fileSize in
 		go bc.startLimitUpdater()
 	}
 
-	return file
+	return file, nil
 }
 
 func (bc *BandwidthController) removeFile(fileID int64) {
@@ -78,11 +91,11 @@ func (bc *BandwidthController) startLimitUpdater() {
 	ticker := time.NewTicker(time.Duration(LimitUpdaterIntervalMilliseconds) * time.Millisecond)
 	for {
 		select {
-		case <-ticker.C:
-			bc.updateLimits()
 		case <-bc.updaterStopC:
 			ticker.Stop()
 			return
+		case <-ticker.C:
+			bc.updateLimits()
 		}
 	}
 }
