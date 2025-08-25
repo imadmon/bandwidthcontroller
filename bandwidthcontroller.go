@@ -2,10 +2,11 @@ package bandwidthcontroller
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"sync"
 	"time"
+
+	"github.com/imadmon/limitedreader"
 )
 
 type BandwidthController struct {
@@ -13,6 +14,7 @@ type BandwidthController struct {
 	files          map[int64]*File
 	mu             sync.Mutex
 	bandwidth      int64
+	freeBandwidth  int64
 	fileCounter    int64
 	filesInSystems int64
 	updaterStopC   chan struct{}
@@ -21,11 +23,12 @@ type BandwidthController struct {
 
 func NewBandwidthController(bandwidth int64, opts ...Option) *BandwidthController {
 	bc := &BandwidthController{
-		cfg:          defaultConfig(),
-		files:        make(map[int64]*File),
-		bandwidth:    bandwidth,
-		updaterStopC: make(chan struct{}),
-		ctx:          context.Background(),
+		cfg:           defaultConfig(),
+		files:         make(map[int64]*File),
+		bandwidth:     bandwidth,
+		freeBandwidth: bandwidth,
+		updaterStopC:  make(chan struct{}),
+		ctx:           context.Background(),
 	}
 
 	for _, opt := range opts {
@@ -47,9 +50,18 @@ func (bc *BandwidthController) AppendFileReadCloser(r io.ReadCloser, fileSize in
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 
+	// no point in allocating bandwidth larger then the bandwidth required for completing the file in one pulse
+	fileBandwidth := getFileMaxBandwidth(fileSize)
+	if bc.freeBandwidth < fileBandwidth {
+		// in any case, don't exceed the desired bandwidth
+		fileBandwidth = bc.freeBandwidth
+	}
+
+	bc.freeBandwidth -= fileBandwidth
 	bc.fileCounter++
+
 	fileID := bc.fileCounter
-	fileReader := NewFileReadCloser(r, bc.bandwidth, func() {
+	fileReader := NewFileReadCloser(r, fileBandwidth, func() {
 		bc.removeFile(fileID)
 	})
 
@@ -57,7 +69,8 @@ func (bc *BandwidthController) AppendFileReadCloser(r io.ReadCloser, fileSize in
 	bc.files[fileID] = file
 	bc.filesInSystems++
 
-	if bc.filesInSystems == 1 { // first file -> start updater
+	// first file -> start updater
+	if bc.filesInSystems == 1 {
 		go bc.startLimitUpdater()
 	}
 
@@ -68,10 +81,12 @@ func (bc *BandwidthController) removeFile(fileID int64) {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 
-	delete(bc.files, fileID)
 	bc.filesInSystems--
+	bc.freeBandwidth += bc.files[fileID].Reader.GetRateLimit()
+	delete(bc.files, fileID)
 
-	if bc.filesInSystems == 0 { // no more files -> stop updater
+	// no more files -> stop updater
+	if bc.filesInSystems == 0 {
 		go bc.stopLimitUpdater()
 	}
 }
@@ -102,27 +117,43 @@ func (bc *BandwidthController) stopLimitUpdater() {
 }
 
 func (bc *BandwidthController) updateLimits() {
-	fmt.Println("updating...")
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
 	weights, totalWeight := getFilesSortedWeights(bc.files)
 	totalBandwidth := bc.bandwidth
 	for _, fileWeightPair := range weights {
 		ratio := fileWeightPair.weight / totalWeight
 		totalWeight -= fileWeightPair.weight
-		newLimit := int64(float64(totalBandwidth) * ratio)
 		file := bc.files[fileWeightPair.id]
-		bytesLeft := file.Size - file.Reader.GetBytesRead()
-		if newLimit > bytesLeft {
-			newLimit = bytesLeft
+		newLimit := int64(float64(totalBandwidth) * ratio)
+
+		// no point in allocating bandwidth larger then the bandwidth required for completing the file in one pulse
+		maxBandwidth := getFileMaxBandwidth(file.Size - file.Reader.GetBytesRead())
+		if newLimit > maxBandwidth {
+			newLimit = maxBandwidth
+		} else {
+			// in routine limit don't allocate bandwidth smaller then the minimun
+			minLimit := int64(float64(file.Size) * *bc.cfg.MinFileBandwidthPercentage)
+			if newLimit < minLimit {
+				newLimit = minLimit
+			}
 		}
-		minLimit := int64(float64(file.Size) * *bc.cfg.MinFileBandwidthPercentage)
-		if newLimit < minLimit {
-			newLimit = minLimit
-		}
+
+		// removing deviation from determenistic ratelimit time calculations
+		newLimit -= newLimit % (1000 / limitedreader.DefaultReadIntervalMilliseconds)
+
+		// in any case, don't exceed the desired bandwidth
 		if newLimit > totalBandwidth {
 			newLimit = totalBandwidth
 		}
 
 		totalBandwidth -= newLimit
-		bc.files[fileWeightPair.id].Reader.UpdateRateLimit(newLimit)
+
+		if file.Reader.GetRateLimit() != newLimit {
+			bc.files[fileWeightPair.id].Reader.UpdateRateLimit(newLimit)
+		}
 	}
+
+	bc.freeBandwidth = totalBandwidth
 }

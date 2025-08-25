@@ -1,6 +1,10 @@
 package bandwidthcontroller
 
-import "context"
+import (
+	"context"
+
+	"github.com/imadmon/limitedreader"
+)
 
 type fileWeight struct {
 	id     int64
@@ -44,4 +48,8 @@ func isContextCancelled(ctx context.Context) bool {
 	default:
 		return false
 	}
+}
+
+func getFileMaxBandwidth(size int64) int64 {
+	return size * (1000 / limitedreader.DefaultReadIntervalMilliseconds)
 }

@@ -1,17 +1,14 @@
 package bandwidthcontroller
 
 import (
-	"fmt"
 	"io"
-	"sync/atomic"
 
 	"github.com/imadmon/limitedreader"
 )
 
 type FileReadCloser struct {
-	reader    *limitedreader.LimitedReader
-	rateLimit atomic.Int64
-	callback  func() // called on Close
+	reader   *limitedreader.LimitedReader
+	callback func() // called on Close
 }
 
 func NewFileReadCloser(r io.ReadCloser, limit int64, callback func()) *FileReadCloser {
@@ -22,8 +19,7 @@ func NewFileReadCloser(r io.ReadCloser, limit int64, callback func()) *FileReadC
 }
 
 func (fr *FileReadCloser) Read(p []byte) (n int, err error) {
-	n, err = fr.reader.Read(p)
-	return n, err
+	return fr.reader.Read(p)
 }
 
 func (fr *FileReadCloser) Close() error {
@@ -37,17 +33,11 @@ func (fr *FileReadCloser) Close() error {
 }
 
 func (fr *FileReadCloser) UpdateRateLimit(newLimit int64) {
-	if newLimit > 0 {
-		fmt.Printf("file new ratelimit: %v, will take %v seconds to finish, already read: %v\n", newLimit, ((1024-fr.GetBytesRead())/newLimit)+1, fr.GetBytesRead())
-	} else {
-		fmt.Printf("file new ratelimit: 0, already read: %v\n", fr.GetBytesRead())
-	}
-	fr.rateLimit.Store(newLimit)
 	fr.reader.UpdateLimit(newLimit)
 }
 
 func (fr *FileReadCloser) GetRateLimit() int64 {
-	return fr.rateLimit.Load()
+	return fr.reader.GetLimit()
 }
 
 func (fr *FileReadCloser) GetBytesRead() int64 {
