@@ -143,6 +143,14 @@ func TestBandwidthControllerFilesCloseBandwidthAllocation(t *testing.T) {
 	validateEmpty(t, bc)
 }
 
+func TestBandwidthControllerZeroFileSizeBehavior(t *testing.T) {
+	bc := NewBandwidthController(0)
+	_, err := bc.AppendFileReader(nil, 0)
+	if err != InvalidFileSize {
+		t.Fatalf("didn't get InvalidFileSize error as expected, error: %v", err)
+	}
+}
+
 func TestBandwidthControllerContextCancelation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	bc := NewBandwidthController(0, WithContext(ctx))

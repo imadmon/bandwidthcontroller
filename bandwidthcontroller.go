@@ -47,6 +47,10 @@ func (bc *BandwidthController) AppendFileReadCloser(r io.ReadCloser, fileSize in
 		return nil, bc.ctx.Err()
 	}
 
+	if fileSize <= 0 {
+		return nil, InvalidFileSize
+	}
+
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 
