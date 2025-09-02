@@ -252,19 +252,22 @@ func TestBandwidthControllerStableThroughput(t *testing.T) {
 	doneC := make(chan struct{})
 	fileSizeUpdateC := make(chan int, 1)
 	fileAmountPerIntervalUpdateC := make(chan int, 1)
-	fileSizeUpdateC <- fileSize
-	fileAmountPerIntervalUpdateC <- fileAmountPerSecond
 
 	start := time.Now()
 
-	go continuouslyAppendFiles(t, bc, stopC, doneC, fileSizeUpdateC, fileAmountPerIntervalUpdateC)
-	time.Sleep((totalFileAmount / fileAmountPerSecond) * time.Second)
+	go continuouslyAppendFiles(t, bc, stopC, doneC, fileSize, fileAmountPerSecond, fileSizeUpdateC, fileAmountPerIntervalUpdateC)
+	time.Sleep(((totalFileAmount / fileAmountPerSecond) * time.Second) - 500*time.Millisecond)
 	stopC <- struct{}{}
 	<-doneC
 
 	elapsed := time.Since(start)
 	expectedTime := totalFileAmount * fileSize / bandwidth
 	validateEmpty(t, bc)
+
+	if bc.fileCounter != totalFileAmount {
+		t.Fatalf("file sent different then expected sent: %d expected: %d", bc.fileCounter, totalFileAmount)
+	}
+
 	assertReadTimes(t, elapsed, expectedTime, expectedTime+1)
 }
 
@@ -300,6 +303,7 @@ func readFile(t *testing.T, file *File) {
 }
 
 func assertReadTimes(t *testing.T, elapsed time.Duration, minTimeInSeconds, maxTimeInSeconds int) {
+	fmt.Printf("Took %v\n", elapsed)
 	minTime := time.Duration(minTimeInSeconds) * time.Second
 	maxTime := time.Duration(maxTimeInSeconds) * time.Second
 	if elapsed.Abs().Round(time.Second) < minTime { // round to second - has a deviation of up to half a second
@@ -330,15 +334,20 @@ func emptyBandwidthController(bc *BandwidthController) {
 	bc.files = make(map[int64]*File)
 }
 
-func continuouslyAppendFiles(t *testing.T, bc *BandwidthController, stopC, doneC chan struct{}, fileSizeUpdateC, fileAmountPerIntervalUpdateC chan int) {
-	var fileSize int
-	var fileAmountPerInterval int
+func continuouslyAppendFiles(t *testing.T, bc *BandwidthController,
+	stopC, doneC chan struct{},
+	startingFileSize, startingFileAmountPerInterval int,
+	fileSizeUpdateC, fileAmountPerIntervalUpdateC chan int) {
+
 	var wg sync.WaitGroup
+	fileSize := startingFileSize
+	fileAmountPerInterval := startingFileAmountPerInterval
 
 	// start sending immediately
 	sendC := make(chan struct{}, 1)
 	sendC <- struct{}{}
 
+	start := time.Now()
 	ticker := time.NewTicker(time.Second)
 	for {
 		select {
@@ -347,10 +356,8 @@ func continuouslyAppendFiles(t *testing.T, bc *BandwidthController, stopC, doneC
 			wg.Wait()
 			doneC <- struct{}{}
 			return
-		case size := <-fileSizeUpdateC:
-			fileSize = size
-		case amountPerInterval := <-fileAmountPerIntervalUpdateC:
-			fileAmountPerInterval = amountPerInterval
+		case fileSize = <-fileSizeUpdateC:
+		case fileAmountPerInterval = <-fileAmountPerIntervalUpdateC:
 		case <-ticker.C:
 			sendC <- struct{}{}
 		case <-sendC:
@@ -358,6 +365,7 @@ func continuouslyAppendFiles(t *testing.T, bc *BandwidthController, stopC, doneC
 				continue
 			}
 
+			fmt.Printf("sending! fileAmount=%d fileSize=%d elapsed Milliseconds=%d\n", fileSize, fileAmountPerInterval, time.Since(start).Milliseconds())
 			for i := 0; i < fileAmountPerInterval; i++ {
 				wg.Add(1)
 				go appendAndReadFile(t, bc, fileSize, &wg)
