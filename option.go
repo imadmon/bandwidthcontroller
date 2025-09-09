@@ -10,6 +10,7 @@ func WithContext(ctx context.Context) Option {
 	}
 }
 
+// WithConfig merges the provided config over defaults (partial overrides supported).
 func WithConfig(cfg Config) Option {
 	return func(bc *BandwidthController) {
 		bc.cfg = defaultConfig()
@@ -18,8 +19,16 @@ func WithConfig(cfg Config) Option {
 			bc.cfg.BandwidthUpdaterInterval = cfg.BandwidthUpdaterInterval
 		}
 
-		if cfg.MinFileBandwidthPercentage != nil {
-			bc.cfg.MinFileBandwidthPercentage = cfg.MinFileBandwidthPercentage
+		if cfg.MinGroupBandwidthPercentage != nil {
+			for g, v := range cfg.MinGroupBandwidthPercentage {
+				bc.cfg.MinGroupBandwidthPercentage[g] = v
+			}
+		}
+
+		if cfg.MinFileBandwidthInBytes != nil {
+			for g, v := range cfg.MinFileBandwidthInBytes {
+				bc.cfg.MinFileBandwidthInBytes[g] = v
+			}
 		}
 	}
 }

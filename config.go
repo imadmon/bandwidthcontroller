@@ -3,16 +3,26 @@ package bandwidthcontroller
 import "time"
 
 type Config struct {
-	BandwidthUpdaterInterval   *time.Duration
-	MinFileBandwidthPercentage *float64
+	BandwidthUpdaterInterval    *time.Duration
+	MinGroupBandwidthPercentage map[GroupType]float64
+	MinFileBandwidthInBytes     map[GroupType]int64
 }
 
 func defaultConfig() Config {
 	bandwidthUpdaterInterval := 200 * time.Millisecond
-	minFileBandwidthPercentage := 0.10
-
 	return Config{
-		BandwidthUpdaterInterval:   &bandwidthUpdaterInterval,
-		MinFileBandwidthPercentage: &minFileBandwidthPercentage,
+		BandwidthUpdaterInterval: &bandwidthUpdaterInterval,
+		MinGroupBandwidthPercentage: map[GroupType]float64{
+			KB: 0.10,
+			MB: 0.10,
+			GB: 0.10,
+			TB: 0.10,
+		},
+		MinFileBandwidthInBytes: map[GroupType]int64{
+			KB: int64(KB / 10),
+			MB: int64(MB / 10),
+			GB: int64(GB / 10),
+			TB: int64(TB / 10),
+		},
 	}
 }

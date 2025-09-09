@@ -176,8 +176,7 @@ func TestBandwidthControllerContextCancelation(t *testing.T) {
 }
 
 func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
-	defaultInterval := 200 * time.Millisecond
-	defaultPct := 0.10
+	defaults := defaultConfig()
 
 	cases := []struct {
 		name     string
@@ -188,53 +187,127 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 			name:  "no overrides uses defaults",
 			input: Config{},
 			expected: Config{
-				BandwidthUpdaterInterval:   &defaultInterval,
-				MinFileBandwidthPercentage: &defaultPct,
+				BandwidthUpdaterInterval:    defaults.BandwidthUpdaterInterval,
+				MinGroupBandwidthPercentage: defaults.MinGroupBandwidthPercentage,
+				MinFileBandwidthInBytes:     defaults.MinFileBandwidthInBytes,
 			},
 		},
 		{
-			name: "override only percentage",
+			name: "override only BandwidthUpdaterInterval",
 			input: func() Config {
-				p := 0.25
-				return Config{MinFileBandwidthPercentage: &p}
+				interval := 500 * time.Millisecond
+				return Config{BandwidthUpdaterInterval: &interval}
 			}(),
 			expected: func() Config {
-				p := 0.25
+				interval := 500 * time.Millisecond
 				return Config{
-					BandwidthUpdaterInterval:   &defaultInterval,
-					MinFileBandwidthPercentage: &p,
+					BandwidthUpdaterInterval:    &interval,
+					MinGroupBandwidthPercentage: defaults.MinGroupBandwidthPercentage,
+					MinFileBandwidthInBytes:     defaults.MinFileBandwidthInBytes,
 				}
 			}(),
 		},
 		{
-			name: "override only interval",
+			name: "override only MinGroupBandwidthPercentage",
+			input: Config{
+				MinGroupBandwidthPercentage: map[GroupType]float64{
+					KB: 0.10,
+					MB: 0.20,
+					GB: 0.30,
+					TB: 0.40,
+				},
+			},
+			expected: Config{
+				BandwidthUpdaterInterval: defaults.BandwidthUpdaterInterval,
+				MinFileBandwidthInBytes:  defaults.MinFileBandwidthInBytes,
+				MinGroupBandwidthPercentage: map[GroupType]float64{
+					KB: 0.10,
+					MB: 0.20,
+					GB: 0.30,
+					TB: 0.40,
+				},
+			},
+		},
+		{
+			name: "override only MinFileBandwidthInBytes",
+			input: Config{
+				MinFileBandwidthInBytes: map[GroupType]int64{
+					KB: 10,
+					MB: 20,
+					GB: 30,
+					TB: 40,
+				},
+			},
+			expected: Config{
+				BandwidthUpdaterInterval:    defaults.BandwidthUpdaterInterval,
+				MinGroupBandwidthPercentage: defaults.MinGroupBandwidthPercentage,
+				MinFileBandwidthInBytes: map[GroupType]int64{
+					KB: 10,
+					MB: 20,
+					GB: 30,
+					TB: 40,
+				},
+			},
+		},
+		{
+			name: "override both BandwidthUpdaterInterval and MinFileBandwidthInBytes",
 			input: func() Config {
-				i := 500 * time.Millisecond
-				return Config{BandwidthUpdaterInterval: &i}
+				interval := 1 * time.Second
+				return Config{
+					BandwidthUpdaterInterval: &interval,
+					MinFileBandwidthInBytes: map[GroupType]int64{
+						KB: 10,
+						MB: 20,
+						GB: 30,
+						TB: 40,
+					},
+				}
 			}(),
 			expected: func() Config {
-				i := 500 * time.Millisecond
+				interval := 1 * time.Second
 				return Config{
-					BandwidthUpdaterInterval:   &i,
-					MinFileBandwidthPercentage: &defaultPct,
+					BandwidthUpdaterInterval:    &interval,
+					MinGroupBandwidthPercentage: defaults.MinGroupBandwidthPercentage,
+					MinFileBandwidthInBytes: map[GroupType]int64{
+						KB: 10,
+						MB: 20,
+						GB: 30,
+						TB: 40,
+					},
 				}
 			}(),
 		},
 		{
-			name: "override both fields",
-			input: func() Config {
-				i := 1 * time.Second
-				p := 0.50
-				return Config{BandwidthUpdaterInterval: &i, MinFileBandwidthPercentage: &p}
-			}(),
-			expected: func() Config {
-				i := 1 * time.Second
-				p := 0.50
-				return Config{
-					BandwidthUpdaterInterval:   &i,
-					MinFileBandwidthPercentage: &p,
-				}
-			}(),
+			name: "override both MinFileBandwidthInBytes and MinGroupBandwidthPercentage",
+			input: Config{
+				MinFileBandwidthInBytes: map[GroupType]int64{
+					KB: 10,
+					MB: 20,
+					GB: 30,
+					TB: 40,
+				},
+				MinGroupBandwidthPercentage: map[GroupType]float64{
+					KB: 0.10,
+					MB: 0.20,
+					GB: 0.30,
+					TB: 0.40,
+				},
+			},
+			expected: Config{
+				BandwidthUpdaterInterval: defaults.BandwidthUpdaterInterval,
+				MinFileBandwidthInBytes: map[GroupType]int64{
+					KB: 10,
+					MB: 20,
+					GB: 30,
+					TB: 40,
+				},
+				MinGroupBandwidthPercentage: map[GroupType]float64{
+					KB: 0.10,
+					MB: 0.20,
+					GB: 0.30,
+					TB: 0.40,
+				},
+			},
 		},
 	}
 
@@ -322,8 +395,15 @@ func assertReadTimes(t *testing.T, elapsed time.Duration, minTimeInSeconds, maxT
 }
 
 func validateEmpty(t *testing.T, bc *BandwidthController) {
-	if len(bc.files) != 0 {
-		t.Fatalf("unexpected number of file left in the bandwidthContorller, left: %d expected: 0", len(bc.files))
+	validateGroupEmpty(t, bc, KB, "KB")
+	validateGroupEmpty(t, bc, MB, "MB")
+	validateGroupEmpty(t, bc, GB, "GB")
+	validateGroupEmpty(t, bc, TB, "TB")
+}
+
+func validateGroupEmpty(t *testing.T, bc *BandwidthController, group GroupType, groupName string) {
+	if len(bc.files[group]) != 0 {
+		t.Fatalf("unexpected number of %s group files left in the bandwidthContorller, left: %d expected: 0", groupName, len(bc.files[group]))
 	}
 }
 
@@ -339,7 +419,10 @@ func waitUntilLimitsAreUpdated() {
 }
 
 func emptyBandwidthController(bc *BandwidthController) {
-	bc.files = make(map[int64]*File)
+	bc.filesInSystems = 0
+	for g, _ := range bc.files {
+		bc.files[g] = make(map[int64]*File)
+	}
 }
 
 func continuouslyAppendFiles(t *testing.T, bc *BandwidthController,
@@ -373,7 +456,7 @@ func continuouslyAppendFiles(t *testing.T, bc *BandwidthController,
 				continue
 			}
 
-			fmt.Printf("sending! fileAmount=%d fileSize=%d elapsed Milliseconds=%d\n", fileSize, fileAmountPerInterval, time.Since(start).Milliseconds())
+			fmt.Printf("sending! fileAmount=%d fileSize=%d elapsed Milliseconds=%d\n", fileAmountPerInterval, fileSize, time.Since(start).Milliseconds())
 			for i := 0; i < fileAmountPerInterval; i++ {
 				wg.Add(1)
 				go appendAndReadFile(t, bc, fileSize, &wg)
