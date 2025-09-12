@@ -5,8 +5,6 @@ import (
 	"io"
 	"sync"
 	"time"
-
-	"github.com/imadmon/limitedreader"
 )
 
 type GroupType int64
@@ -64,11 +62,10 @@ func (bc *BandwidthController) AppendFileReadCloser(r io.ReadCloser, fileSize in
 		return nil, bc.ctx.Err()
 	}
 
-	if fileSize <= 0 {
-		return nil, InvalidFileSize
+	group, err := getGroup(fileSize)
+	if err != nil {
+		return nil, err
 	}
-
-	group := getGroup(fileSize)
 
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
@@ -179,8 +176,8 @@ func (bc *BandwidthController) updateBandwidthGroupLimits(group GroupType, insig
 
 	bandwidthGroup := bc.files[group]
 	for _, fileWeightPair := range weights.weights {
-		ratio := fileWeightPair.weight / weights.totalWeight
-		weights.totalWeight -= fileWeightPair.weight
+		ratio := fileWeightPair.weight / weights.totalWeights
+		weights.totalWeights -= fileWeightPair.weight
 		file := bandwidthGroup[fileWeightPair.id]
 		newLimit := int64(float64(groupBandwidth) * ratio)
 
@@ -196,7 +193,7 @@ func (bc *BandwidthController) updateBandwidthGroupLimits(group GroupType, insig
 		}
 
 		// removing deviation from determenistic ratelimit time calculations
-		newLimit -= newLimit % (1000 / limitedreader.DefaultReadIntervalMilliseconds)
+		newLimit = getFileBandwidthWithoutDeviation(newLimit)
 
 		// in any case, don't exceed the desired bandwidth
 		if newLimit > groupBandwidth {

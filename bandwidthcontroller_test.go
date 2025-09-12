@@ -316,7 +316,7 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 			bc := NewBandwidthController(0, WithConfig(c.input))
 
 			if !reflect.DeepEqual(bc.cfg, c.expected) {
-				t.Fatalf("config mismatch\ngot:  %#v\nexpected: %#v", bc.cfg, c.expected)
+				t.Fatalf("config mismatch\ngot: %#v\nexpected: %#v", bc.cfg, c.expected)
 			}
 		})
 	}
@@ -408,6 +408,8 @@ func validateGroupEmpty(t *testing.T, bc *BandwidthController, group GroupType, 
 }
 
 func validateFileBandwidth(t *testing.T, fileName string, fileBandwidth, expectedBandwidth int64) {
+	expectedBandwidth = getFileBandwidthWithoutDeviation(expectedBandwidth)
+
 	// consider deviation of 1 (remainder)
 	if math.Abs(float64(fileBandwidth-expectedBandwidth)) > 1 {
 		t.Fatalf("%s appointed bandwidth different then expected. bandwidth: %d expected: %d", fileName, fileBandwidth, expectedBandwidth)
