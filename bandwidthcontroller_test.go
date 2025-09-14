@@ -17,12 +17,35 @@ func TestBandwidthControllerMultipleSameSizeFiles(t *testing.T) {
 	const filesAmount = 4
 	const bandwidth = fileSize // will take (fileSize * filesAmount)/bandwidth seconds
 
+	expectedBandwidthAllocation := map[int]map[int]int64 {
+		0: {
+			0: 102400,
+		},
+		1: {
+			0: 51200,
+			1: 51200,
+		},
+		2: {
+			0: 34120,
+			1: 34140,
+			2: 34140,
+		},
+		3: {
+			0: 25600,
+			1: 25600,
+			2: 25600,
+			3: 25600,
+		},
+	}
+
 	files := make([]*File, filesAmount)
 	bc := NewBandwidthController(int64(bandwidth))
 	for i := 0; i < filesAmount; i++ {
 		files[i], _ = bc.AppendFileReader(bytes.NewReader(make([]byte, fileSize)), int64(fileSize))
 		waitUntilLimitsAreUpdated()
-		validateFileBandwidth(t, fmt.Sprintf("file #%d", i), files[i].Reader.GetRateLimit(), int64(bandwidth/(i+1)))
+		for j := 0; j <= i; j++ {
+			validateFileBandwidth(t, fmt.Sprintf("lap: #%d file #%d", i, j), files[j].Reader.GetRateLimit(), expectedBandwidthAllocation[i][j])
+		}
 	}
 
 	if len(bc.files) != filesAmount {
