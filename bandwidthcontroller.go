@@ -19,15 +19,16 @@ const (
 type BandwidthGroup map[int64]*File
 
 type BandwidthController struct {
-	cfg            Config
-	files          map[GroupType]BandwidthGroup
-	mu             sync.Mutex
-	bandwidth      int64
-	freeBandwidth  int64
-	fileCounter    int64
-	filesInSystems int64
-	updaterStopC   chan struct{}
-	ctx            context.Context
+	cfg             Config
+	files           map[GroupType]BandwidthGroup
+	bandwidth       int64
+	freeBandwidth   int64
+	groupsBandwidth map[GroupType]int64
+	mu              sync.Mutex
+	fileCounter     int64
+	filesInSystems  int64
+	updaterStopC    chan struct{}
+	ctx             context.Context
 }
 
 func NewBandwidthController(bandwidth int64, opts ...Option) *BandwidthController {
@@ -42,6 +43,12 @@ func NewBandwidthController(bandwidth int64, opts ...Option) *BandwidthControlle
 		},
 		bandwidth:     bandwidth,
 		freeBandwidth: bandwidth,
+		groupsBandwidth: map[GroupType]int64{
+			KB: 0,
+			MB: 0,
+			GB: 0,
+			TB: 0,
+		},
 		updaterStopC:  make(chan struct{}),
 		ctx:           context.Background(),
 	}
@@ -166,11 +173,12 @@ func (bc *BandwidthController) updateBandwidthGroupLimits(group GroupType, insig
 
 	// calculate bandwidth for group
 	groupBandwidth := insights.bandwidthLeft * (weights.totalRemainingSize / insights.leftGroupsRemainingSize)
-	minGroupBandwidth := bc.bandwidth * int64(bc.cfg.MinGroupBandwidthPercentage[group])
+	minGroupBandwidth := int64(float64(bc.bandwidth) * bc.cfg.MinGroupBandwidthPercentage[group])
 	if groupBandwidth < minGroupBandwidth {
 		groupBandwidth = minGroupBandwidth
 	}
 
+	bc.groupsBandwidth[group] = groupBandwidth
 	insights.bandwidthLeft -= groupBandwidth
 	insights.leftGroupsRemainingSize -= weights.totalRemainingSize
 
