@@ -49,8 +49,8 @@ func NewBandwidthController(bandwidth int64, opts ...Option) *BandwidthControlle
 			GB: 0,
 			TB: 0,
 		},
-		updaterStopC:  make(chan struct{}),
-		ctx:           context.Background(),
+		updaterStopC: make(chan struct{}),
+		ctx:          context.Background(),
 	}
 
 	for _, opt := range opts {
@@ -168,11 +168,12 @@ type bandwidthInsights struct {
 
 func (bc *BandwidthController) updateBandwidthGroupLimits(group GroupType, insights *bandwidthInsights, weights fileWeights) {
 	if weights.totalRemainingSize <= 0 || insights.leftGroupsRemainingSize <= 0 {
+		bc.groupsBandwidth[group] = 0
 		return
 	}
 
 	// calculate bandwidth for group
-	groupBandwidth := insights.bandwidthLeft * (weights.totalRemainingSize / insights.leftGroupsRemainingSize)
+	groupBandwidth := int64(float64(insights.bandwidthLeft) * (float64(weights.totalRemainingSize) / float64(insights.leftGroupsRemainingSize)))
 	minGroupBandwidth := int64(float64(bc.bandwidth) * bc.cfg.MinGroupBandwidthPercentage[group])
 	if groupBandwidth < minGroupBandwidth {
 		groupBandwidth = minGroupBandwidth
@@ -216,5 +217,6 @@ func (bc *BandwidthController) updateBandwidthGroupLimits(group GroupType, insig
 	}
 
 	// return left over bandwidth
+	bc.groupsBandwidth[group] -= groupBandwidth
 	insights.bandwidthLeft += groupBandwidth
 }
