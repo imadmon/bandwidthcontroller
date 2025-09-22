@@ -12,7 +12,7 @@ func TestUtilsGetGroupsSortedWeights(t *testing.T) {
 		expectedGroupsTotalSizes           map[GroupType]int64
 	}{
 		{
-			name:                               "only KB files",
+			name:                               "only KB streams",
 			expectedOverallGroupsRemainingSize: 100,
 			expectedGroupsAmounts: map[GroupType]int{
 				KB: 10,
@@ -28,7 +28,7 @@ func TestUtilsGetGroupsSortedWeights(t *testing.T) {
 			},
 		},
 		{
-			name:                               "both KB and GB files",
+			name:                               "both KB and GB streams",
 			expectedOverallGroupsRemainingSize: 5*int64(GB) + 100,
 			expectedGroupsAmounts: map[GroupType]int{
 				KB: 10,
@@ -44,7 +44,7 @@ func TestUtilsGetGroupsSortedWeights(t *testing.T) {
 			},
 		},
 		{
-			name:                               "all group types files",
+			name:                               "all group types streams",
 			expectedOverallGroupsRemainingSize: 5*int64(TB) + 5*int64(GB) + 20*int64(MB) + 100,
 			expectedGroupsAmounts: map[GroupType]int{
 				KB: 10,
@@ -63,14 +63,14 @@ func TestUtilsGetGroupsSortedWeights(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			files := map[GroupType]BandwidthGroup{
-				KB: generateGroupFiles(c.expectedGroupsAmounts[KB], c.expectedGroupsTotalSizes[KB]),
-				MB: generateGroupFiles(c.expectedGroupsAmounts[MB], c.expectedGroupsTotalSizes[MB]),
-				GB: generateGroupFiles(c.expectedGroupsAmounts[GB], c.expectedGroupsTotalSizes[GB]),
-				TB: generateGroupFiles(c.expectedGroupsAmounts[TB], c.expectedGroupsTotalSizes[TB]),
+			streams := map[GroupType]BandwidthGroup{
+				KB: generateGroupStreams(c.expectedGroupsAmounts[KB], c.expectedGroupsTotalSizes[KB]),
+				MB: generateGroupStreams(c.expectedGroupsAmounts[MB], c.expectedGroupsTotalSizes[MB]),
+				GB: generateGroupStreams(c.expectedGroupsAmounts[GB], c.expectedGroupsTotalSizes[GB]),
+				TB: generateGroupStreams(c.expectedGroupsAmounts[TB], c.expectedGroupsTotalSizes[TB]),
 			}
 
-			weights, overallGroupsRemainingSize := getGroupsSortedWeights(files)
+			weights, overallGroupsRemainingSize := getGroupsSortedWeights(streams)
 
 			if overallGroupsRemainingSize != c.expectedOverallGroupsRemainingSize {
 				t.Fatalf("overallGroupsRemainingSize mismatch\ngot: %d\nexpected: %d", overallGroupsRemainingSize, c.expectedOverallGroupsRemainingSize)
@@ -92,17 +92,17 @@ func TestUtilsGetGroupsSortedWeights(t *testing.T) {
 	}
 }
 
-func generateGroupFiles(filesAmount int, filesTotalSize int64) BandwidthGroup {
-	files := make(BandwidthGroup)
-	for i := 0; i < filesAmount; i++ {
-		files[int64(i)] = NewFile(NewFileReadCloser(nil, 0, nil), filesTotalSize/int64(filesAmount))
+func generateGroupStreams(streamsAmount int, streamsTotalSize int64) BandwidthGroup {
+	streams := make(BandwidthGroup)
+	for i := 0; i < streamsAmount; i++ {
+		streams[int64(i)] = NewStream(NewStreamReadCloser(nil, 0, nil), streamsTotalSize/int64(streamsAmount))
 	}
 
-	return files
+	return streams
 }
 
 func validateWeightsPerGroup(t *testing.T, group GroupType, groupName string,
-	weights map[GroupType]fileWeights,
+	weights map[GroupType]streamWeights,
 	expectedGroupsAmounts map[GroupType]int,
 	expectedGroupsTotalSizes map[GroupType]int64) {
 	if len(weights[group].weights) != expectedGroupsAmounts[group] {
@@ -114,51 +114,51 @@ func validateWeightsPerGroup(t *testing.T, group GroupType, groupName string,
 	}
 }
 
-func TestUtilsGetFilesSortedWeights(t *testing.T) {
-	files := make(BandwidthGroup)
+func TestUtilsGetStreamsSortedWeights(t *testing.T) {
+	streams := make(BandwidthGroup)
 	var expectedTotalWeights float64
 	var expectedTotalRemainingSize int64
 	for i := 5; i > 0; i-- {
-		files[int64(i)] = NewFile(NewFileReadCloser(nil, 0, nil), int64(i))
+		streams[int64(i)] = NewStream(NewStreamReadCloser(nil, 0, nil), int64(i))
 		expectedTotalWeights += 1.0 / float64(i)
 		expectedTotalRemainingSize += int64(i)
 	}
 
-	fileWeights := getFilesSortedWeights(files)
+	streamWeights := getStreamsSortedWeights(streams)
 
-	if fileWeights.totalRemainingSize != expectedTotalRemainingSize {
-		t.Fatalf("totalRemainingSize is different then expected totalRemainingSize: %d expected: %d", fileWeights.totalRemainingSize, expectedTotalRemainingSize)
+	if streamWeights.totalRemainingSize != expectedTotalRemainingSize {
+		t.Fatalf("totalRemainingSize is different then expected totalRemainingSize: %d expected: %d", streamWeights.totalRemainingSize, expectedTotalRemainingSize)
 	}
 
-	if fileWeights.totalWeights != expectedTotalWeights {
-		t.Fatalf("totalWeights is different then expected totalWeights: %f expected: %f", fileWeights.totalWeights, expectedTotalWeights)
+	if streamWeights.totalWeights != expectedTotalWeights {
+		t.Fatalf("totalWeights is different then expected totalWeights: %f expected: %f", streamWeights.totalWeights, expectedTotalWeights)
 	}
 
 	for i := 0; i < 5; i++ {
-		if fileWeights.weights[i].weight != 1.0/float64(i+1) {
-			t.Fatalf("weights is not sorted current weight: %f expected: %f", fileWeights.weights[i].weight, 1.0/float64(i+1))
+		if streamWeights.weights[i].weight != 1.0/float64(i+1) {
+			t.Fatalf("weights is not sorted current weight: %f expected: %f", streamWeights.weights[i].weight, 1.0/float64(i+1))
 		}
 	}
 }
 
-func TestUtilsGetFilesSortedWeightsEmptyOnFinish(t *testing.T) {
-	files := make(BandwidthGroup)
+func TestUtilsGetStreamsSortedWeightsEmptyOnFinish(t *testing.T) {
+	streams := make(BandwidthGroup)
 	for i := 5; i > 0; i-- {
-		files[int64(i)] = NewFile(NewFileReadCloser(nil, 0, nil), 0)
+		streams[int64(i)] = NewStream(NewStreamReadCloser(nil, 0, nil), 0)
 	}
 
-	fileWeights := getFilesSortedWeights(files)
+	streamWeights := getStreamsSortedWeights(streams)
 
-	if fileWeights.totalRemainingSize != 0 {
-		t.Fatalf("totalRemainingSize is more then 0, totalRemainingSize: %d", fileWeights.totalRemainingSize)
+	if streamWeights.totalRemainingSize != 0 {
+		t.Fatalf("totalRemainingSize is more then 0, totalRemainingSize: %d", streamWeights.totalRemainingSize)
 	}
 
-	if fileWeights.totalWeights != 0 {
-		t.Fatalf("totalWeights is more then 0, totalWeights: %f", fileWeights.totalWeights)
+	if streamWeights.totalWeights != 0 {
+		t.Fatalf("totalWeights is more then 0, totalWeights: %f", streamWeights.totalWeights)
 	}
 
-	if len(fileWeights.weights) != 0 {
-		t.Fatalf("weights length is more then 0, weights length: %d", len(fileWeights.weights))
+	if len(streamWeights.weights) != 0 {
+		t.Fatalf("weights length is more then 0, weights length: %d", len(streamWeights.weights))
 	}
 }
 
@@ -170,34 +170,34 @@ func TestUtilsGetGroup(t *testing.T) {
 		expectedErr   error
 	}{
 		{
-			name:          "TB filesize",
+			name:          "TB stream size",
 			input:         1_099_511_627_776,
 			expectedGroup: TB,
 			expectedErr:   nil,
 		},
 		{
-			name:          "GB filesize",
+			name:          "GB stream size",
 			input:         1_073_741_824,
 			expectedGroup: GB,
 			expectedErr:   nil,
 		},
 		{
-			name:          "MB filesize",
+			name:          "MB stream size",
 			input:         1_048_576,
 			expectedGroup: MB,
 			expectedErr:   nil,
 		},
 		{
-			name:          "KB filesize",
+			name:          "KB stream size",
 			input:         1024,
 			expectedGroup: KB,
 			expectedErr:   nil,
 		},
 		{
-			name:          "Invalid filesize",
+			name:          "Invalid stream size",
 			input:         0,
 			expectedGroup: 0,
-			expectedErr:   InvalidFileSize,
+			expectedErr:   InvalidStreamSize,
 		},
 	}
 

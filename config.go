@@ -5,7 +5,7 @@ import "time"
 type Config struct {
 	BandwidthUpdaterInterval    *time.Duration
 	MinGroupBandwidthPercentage map[GroupType]float64
-	MinFileBandwidthInBytes     map[GroupType]int64
+	MinStreamBandwidthInBytes   map[GroupType]int64
 }
 
 func defaultConfig() Config {
@@ -18,7 +18,7 @@ func defaultConfig() Config {
 			GB: 0.10,
 			TB: 0.10,
 		},
-		MinFileBandwidthInBytes: map[GroupType]int64{
+		MinStreamBandwidthInBytes: map[GroupType]int64{
 			KB: int64(KB / 10),
 			MB: int64(MB / 10),
 			GB: int64(GB / 10),

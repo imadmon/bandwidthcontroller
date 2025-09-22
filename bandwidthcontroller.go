@@ -17,28 +17,28 @@ const (
 	TB GroupType = 1024 * GB
 )
 
-type BandwidthGroup map[int64]*File
+type BandwidthGroup map[int64]*Stream
 
 var InvalidBandwidth = errors.New("invalid bandwidth")
 
 type BandwidthController struct {
-	cfg             Config
-	files           map[GroupType]BandwidthGroup
-	bandwidth       int64
-	freeBandwidth   int64
-	groupsBandwidth map[GroupType]int64
-	mu              sync.Mutex
-	fileCounter     int64
-	filesInSystems  int64
-	updaterStopC    chan struct{}
-	ctx             context.Context
+	cfg              Config
+	streams          map[GroupType]BandwidthGroup
+	bandwidth        int64
+	freeBandwidth    int64
+	groupsBandwidth  map[GroupType]int64
+	mu               sync.Mutex
+	streamCounter    int64
+	streamsInSystems int64
+	updaterStopC     chan struct{}
+	ctx              context.Context
 }
 
 func NewBandwidthController(bandwidth int64, opts ...Option) *BandwidthController {
 	bc := &BandwidthController{
 		cfg: defaultConfig(),
 		// declaring here to prevent checking with each append later
-		files: map[GroupType]BandwidthGroup{
+		streams: map[GroupType]BandwidthGroup{
 			KB: make(BandwidthGroup),
 			MB: make(BandwidthGroup),
 			GB: make(BandwidthGroup),
@@ -63,20 +63,20 @@ func NewBandwidthController(bandwidth int64, opts ...Option) *BandwidthControlle
 	return bc
 }
 
-func (bc *BandwidthController) AppendFileReader(r io.Reader, fileSize int64) (*File, error) {
-	return bc.AppendFileReadCloser(io.NopCloser(r), fileSize)
+func (bc *BandwidthController) AppendStreamReader(r io.Reader, streamSize int64) (*Stream, error) {
+	return bc.AppendStreamReadCloser(io.NopCloser(r), streamSize)
 }
 
-func (bc *BandwidthController) AppendFileReadCloser(r io.ReadCloser, fileSize int64) (*File, error) {
+func (bc *BandwidthController) AppendStreamReadCloser(r io.ReadCloser, streamSize int64) (*Stream, error) {
 	if isContextCancelled(bc.ctx) {
 		return nil, bc.ctx.Err()
 	}
 
-	if bc.bandwidth < getFileMaxBandwidth(1) {
+	if bc.bandwidth < getStreamMaxBandwidth(1) {
 		return nil, InvalidBandwidth
 	}
 
-	group, err := getGroup(fileSize)
+	group, err := getGroup(streamSize)
 	if err != nil {
 		return nil, err
 	}
@@ -84,57 +84,57 @@ func (bc *BandwidthController) AppendFileReadCloser(r io.ReadCloser, fileSize in
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 
-	// no point in allocating bandwidth larger then the bandwidth required for completing the file in one pulse
-	fileBandwidth := getFileMaxBandwidth(fileSize)
-	if bc.freeBandwidth < fileBandwidth {
+	// no point in allocating bandwidth larger then the bandwidth required for completing the stream in one pulse
+	streamBandwidth := getStreamMaxBandwidth(streamSize)
+	if bc.freeBandwidth < streamBandwidth {
 		// in any case, don't exceed the desired bandwidth
-		fileBandwidth = bc.freeBandwidth
+		streamBandwidth = bc.freeBandwidth
 	}
 
-	bc.freeBandwidth -= fileBandwidth
+	bc.freeBandwidth -= streamBandwidth
 
-	bc.fileCounter++
-	fileID := bc.fileCounter
-	fileReader := NewFileReadCloser(r, fileBandwidth, func() {
-		bc.removeFile(group, fileID)
+	bc.streamCounter++
+	streamID := bc.streamCounter
+	streamReader := NewStreamReadCloser(r, streamBandwidth, func() {
+		bc.removeStream(group, streamID)
 	})
 
-	file := NewFile(fileReader, fileSize)
-	bc.files[group][fileID] = file
-	bc.filesInSystems++
+	stream := NewStream(streamReader, streamSize)
+	bc.streams[group][streamID] = stream
+	bc.streamsInSystems++
 
-	// first file -> start updater
-	if bc.filesInSystems == 1 {
+	// first stream -> start updater
+	if bc.streamsInSystems == 1 {
 		go bc.startLimitUpdater()
 	}
 
-	return file, nil
+	return stream, nil
 }
 
-func (bc *BandwidthController) removeFile(group GroupType, fileID int64) {
+func (bc *BandwidthController) removeStream(group GroupType, streamID int64) {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 
-	bc.filesInSystems--
-	bc.freeBandwidth += bc.files[group][fileID].Reader.GetRateLimit()
-	delete(bc.files[group], fileID)
+	bc.streamsInSystems--
+	bc.freeBandwidth += bc.streams[group][streamID].Reader.GetRateLimit()
+	delete(bc.streams[group], streamID)
 
-	// no more files -> stop updater
-	if bc.filesInSystems == 0 {
+	// no more streams -> stop updater
+	if bc.streamsInSystems == 0 {
 		go bc.stopLimitUpdater()
 	}
 }
 
-func (bc *BandwidthController) GetTotalFilesInSystem() int64 {
-	return bc.fileCounter
+func (bc *BandwidthController) GetTotalStreamsInSystem() int64 {
+	return bc.streamCounter
 }
 
-func (bc *BandwidthController) GetCurrentFilesInSystem() int64 {
-	return bc.filesInSystems
+func (bc *BandwidthController) GetCurrentStreamsInSystem() int64 {
+	return bc.streamsInSystems
 }
 
 func (bc *BandwidthController) UpdateBandwidth(bandwidth int64) error {
-	if bandwidth < getFileMaxBandwidth(1) {
+	if bandwidth < getStreamMaxBandwidth(1) {
 		return InvalidBandwidth
 	}
 
@@ -167,7 +167,7 @@ func (bc *BandwidthController) updateLimits() {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 
-	weights, overallGroupsRemainingSize := getGroupsSortedWeights(bc.files)
+	weights, overallGroupsRemainingSize := getGroupsSortedWeights(bc.streams)
 	insights := bandwidthInsights{
 		bandwidthLeft:           bc.bandwidth,
 		leftGroupsRemainingSize: overallGroupsRemainingSize,
@@ -186,7 +186,7 @@ type bandwidthInsights struct {
 	leftGroupsRemainingSize int64
 }
 
-func (bc *BandwidthController) updateBandwidthGroupLimits(group GroupType, insights *bandwidthInsights, weights fileWeights) {
+func (bc *BandwidthController) updateBandwidthGroupLimits(group GroupType, insights *bandwidthInsights, weights streamWeights) {
 	if weights.totalRemainingSize <= 0 || insights.leftGroupsRemainingSize <= 0 {
 		bc.groupsBandwidth[group] = 0
 		return
@@ -203,26 +203,26 @@ func (bc *BandwidthController) updateBandwidthGroupLimits(group GroupType, insig
 	insights.bandwidthLeft -= groupBandwidth
 	insights.leftGroupsRemainingSize -= weights.totalRemainingSize
 
-	bandwidthGroup := bc.files[group]
-	for _, fileWeightPair := range weights.weights {
-		ratio := fileWeightPair.weight / weights.totalWeights
-		weights.totalWeights -= fileWeightPair.weight
-		file := bandwidthGroup[fileWeightPair.id]
+	bandwidthGroup := bc.streams[group]
+	for _, streamWeightPair := range weights.weights {
+		ratio := streamWeightPair.weight / weights.totalWeights
+		weights.totalWeights -= streamWeightPair.weight
+		stream := bandwidthGroup[streamWeightPair.id]
 		newLimit := int64(float64(groupBandwidth) * ratio)
 
-		// no point in allocating bandwidth larger then the bandwidth required for completing the file in one pulse
-		maxBandwidth := getFileMaxBandwidth(file.Size - file.Reader.GetBytesRead())
+		// no point in allocating bandwidth larger then the bandwidth required for completing the stream in one pulse
+		maxBandwidth := getStreamMaxBandwidth(stream.Size - stream.Reader.GetBytesRead())
 		if newLimit > maxBandwidth {
 			newLimit = maxBandwidth
 		} else {
 			// in routine limit don't allocate bandwidth smaller then the minimun
-			if newLimit < bc.cfg.MinFileBandwidthInBytes[group] {
-				newLimit = bc.cfg.MinFileBandwidthInBytes[group]
+			if newLimit < bc.cfg.MinStreamBandwidthInBytes[group] {
+				newLimit = bc.cfg.MinStreamBandwidthInBytes[group]
 			}
 		}
 
 		// removing deviation from determenistic ratelimit time calculations
-		newLimit = getFileBandwidthWithoutDeviation(newLimit)
+		newLimit = getStreamBandwidthWithoutDeviation(newLimit)
 
 		// in any case, don't exceed the desired bandwidth
 		if newLimit > groupBandwidth {
@@ -231,8 +231,8 @@ func (bc *BandwidthController) updateBandwidthGroupLimits(group GroupType, insig
 
 		groupBandwidth -= newLimit
 
-		if file.Reader.GetRateLimit() != newLimit {
-			file.Reader.UpdateRateLimit(newLimit)
+		if stream.Reader.GetRateLimit() != newLimit {
+			stream.Reader.UpdateRateLimit(newLimit)
 		}
 	}
 

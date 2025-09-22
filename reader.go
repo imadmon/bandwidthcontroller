@@ -6,23 +6,23 @@ import (
 	"github.com/imadmon/limitedreader"
 )
 
-type FileReadCloser struct {
+type StreamReadCloser struct {
 	reader   *limitedreader.LimitedReader
 	callback func() // called on Close
 }
 
-func NewFileReadCloser(r io.ReadCloser, limit int64, callback func()) *FileReadCloser {
-	return &FileReadCloser{
+func NewStreamReadCloser(r io.ReadCloser, limit int64, callback func()) *StreamReadCloser {
+	return &StreamReadCloser{
 		reader:   limitedreader.NewLimitedReadCloser(r, limit),
 		callback: callback,
 	}
 }
 
-func (fr *FileReadCloser) Read(p []byte) (n int, err error) {
+func (fr *StreamReadCloser) Read(p []byte) (n int, err error) {
 	return fr.reader.Read(p)
 }
 
-func (fr *FileReadCloser) Close() error {
+func (fr *StreamReadCloser) Close() error {
 	err := fr.reader.Close()
 
 	if fr.callback != nil {
@@ -32,14 +32,14 @@ func (fr *FileReadCloser) Close() error {
 	return err
 }
 
-func (fr *FileReadCloser) UpdateRateLimit(newLimit int64) {
+func (fr *StreamReadCloser) UpdateRateLimit(newLimit int64) {
 	fr.reader.UpdateLimit(newLimit)
 }
 
-func (fr *FileReadCloser) GetRateLimit() int64 {
+func (fr *StreamReadCloser) GetRateLimit() int64 {
 	return fr.reader.GetLimit()
 }
 
-func (fr *FileReadCloser) GetBytesRead() int64 {
+func (fr *StreamReadCloser) GetBytesRead() int64 {
 	return fr.reader.GetTotalRead()
 }

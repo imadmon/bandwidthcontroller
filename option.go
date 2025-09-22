@@ -25,9 +25,9 @@ func WithConfig(cfg Config) Option {
 			}
 		}
 
-		if cfg.MinFileBandwidthInBytes != nil {
-			for g, v := range cfg.MinFileBandwidthInBytes {
-				bc.cfg.MinFileBandwidthInBytes[g] = v
+		if cfg.MinStreamBandwidthInBytes != nil {
+			for g, v := range cfg.MinStreamBandwidthInBytes {
+				bc.cfg.MinStreamBandwidthInBytes[g] = v
 			}
 		}
 	}
