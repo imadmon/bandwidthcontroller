@@ -38,9 +38,9 @@ func TestBandwidthControllerMultipleSameSizeFiles(t *testing.T) {
 	}
 
 	files := make([]*File, filesAmount)
-	bc := NewBandwidthController(int64(bandwidth))
+	bc := NewBandwidthController(bandwidth)
 	for i := 0; i < filesAmount; i++ {
-		files[i], _ = bc.AppendFileReader(bytes.NewReader(make([]byte, fileSize)), int64(fileSize))
+		files[i], _ = bc.AppendFileReader(bytes.NewReader(make([]byte, fileSize)), fileSize)
 		waitUntilLimitsAreUpdated()
 		for j := 0; j <= i; j++ {
 			validateBandwidth(t, fmt.Sprintf("lap: #%d file #%d", i, j), files[j].Reader.GetRateLimit(), expectedBandwidthAllocation[i][j])
@@ -62,8 +62,8 @@ func TestBandwidthControllerRateLimit(t *testing.T) {
 	const partsAmount = 3
 	const bandwidth = fileSize / partsAmount // fileSize/partsAmount bytes per second
 
-	bc := NewBandwidthController(int64(bandwidth))
-	file, _ := bc.AppendFileReader(bytes.NewReader(make([]byte, fileSize)), int64(fileSize))
+	bc := NewBandwidthController(bandwidth)
+	file, _ := bc.AppendFileReader(bytes.NewReader(make([]byte, fileSize)), fileSize)
 
 	start := time.Now()
 	readFile(t, file)
@@ -78,16 +78,16 @@ func TestBandwidthControllerMaxFileBandwidth(t *testing.T) {
 	largeFileMaxBandwidth := getFileMaxBandwidth(largeFileSize)
 	bandwidth := (smallFileMaxBandwidth * 2) + largeFileMaxBandwidth // total
 
-	bandwidthContorller := NewBandwidthController(int64(bandwidth))
+	bandwidthContorller := NewBandwidthController(bandwidth)
 
-	smallFile1, _ := bandwidthContorller.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), int64(smallFileSize))
+	smallFile1, _ := bandwidthContorller.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), smallFileSize)
 	validateBandwidth(t, "first add: smallFile1", smallFile1.Reader.GetRateLimit(), smallFileMaxBandwidth)
 
-	smallFile2, _ := bandwidthContorller.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), int64(smallFileSize))
+	smallFile2, _ := bandwidthContorller.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), smallFileSize)
 	validateBandwidth(t, "second add: smallFile1", smallFile1.Reader.GetRateLimit(), smallFileMaxBandwidth)
 	validateBandwidth(t, "second add: smallFile2", smallFile2.Reader.GetRateLimit(), smallFileMaxBandwidth)
 
-	largeFile1, _ := bandwidthContorller.AppendFileReader(bytes.NewReader(make([]byte, largeFileSize)), int64(largeFileSize))
+	largeFile1, _ := bandwidthContorller.AppendFileReader(bytes.NewReader(make([]byte, largeFileSize)), largeFileSize)
 	validateBandwidth(t, "third add: smallFile1", smallFile1.Reader.GetRateLimit(), smallFileMaxBandwidth)
 	validateBandwidth(t, "third add: smallFile2", smallFile2.Reader.GetRateLimit(), smallFileMaxBandwidth)
 	validateBandwidth(t, "third add: largeFile1", largeFile1.Reader.GetRateLimit(), largeFileMaxBandwidth)
@@ -96,14 +96,14 @@ func TestBandwidthControllerMaxFileBandwidth(t *testing.T) {
 func TestBandwidthControllerAppendFilesBandwidthAllocation(t *testing.T) {
 	const smallFileSize = 1 * 1024          // 1 KB
 	const largeFileSize = 300 * 1024 * 1024 // 300 MB
-	bandwidth := (smallFileSize * 2) + largeFileSize
+	const bandwidth = (smallFileSize * 2) + largeFileSize
 	expectedSmallFileBandwidth := getFileMaxBandwidth(smallFileSize)
-	expectedLargeFileBandwidth := getFileBandwidthWithoutDeviation(int64(bandwidth) - (expectedSmallFileBandwidth * 2))
+	expectedLargeFileBandwidth := getFileBandwidthWithoutDeviation(bandwidth - (expectedSmallFileBandwidth * 2))
 
 	var smallFile1 *File
 	var smallFile2 *File
 	var largeFile1 *File
-	bc := NewBandwidthController(int64(bandwidth))
+	bc := NewBandwidthController(bandwidth)
 
 	assertExpectedResult := func(testName string) {
 		waitUntilLimitsAreUpdated()
@@ -116,34 +116,34 @@ func TestBandwidthControllerAppendFilesBandwidthAllocation(t *testing.T) {
 		validateBandwidth(t, testName+": TB group", bc.groupsBandwidth[TB], 0)
 	}
 
-	largeFile1, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, largeFileSize)), int64(largeFileSize))
-	smallFile1, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), int64(smallFileSize))
-	smallFile2, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), int64(smallFileSize))
+	largeFile1, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, largeFileSize)), largeFileSize)
+	smallFile1, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), smallFileSize)
+	smallFile2, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), smallFileSize)
 	assertExpectedResult("large first")
 
 	emptyBandwidthController(bc)
-	smallFile1, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), int64(smallFileSize))
-	smallFile2, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), int64(smallFileSize))
-	largeFile1, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, largeFileSize)), int64(largeFileSize))
+	smallFile1, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), smallFileSize)
+	smallFile2, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), smallFileSize)
+	largeFile1, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, largeFileSize)), largeFileSize)
 	assertExpectedResult("large last")
 
 	emptyBandwidthController(bc)
-	smallFile1, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), int64(smallFileSize))
-	largeFile1, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, largeFileSize)), int64(largeFileSize))
-	smallFile2, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), int64(smallFileSize))
+	smallFile1, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), smallFileSize)
+	largeFile1, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, largeFileSize)), largeFileSize)
+	smallFile2, _ = bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), smallFileSize)
 	assertExpectedResult("large middle")
 }
 
 func TestBandwidthControllerFilesCloseBandwidthAllocation(t *testing.T) {
 	const smallFileSize = 1 * 1024          // 1 KB
 	const largeFileSize = 300 * 1024 * 1024 // 300 MB
-	bandwidth := ((smallFileSize * 2) + largeFileSize)
+	const bandwidth = ((smallFileSize * 2) + largeFileSize)
 	expectedSmallFileBandwidth := getFileMaxBandwidth(smallFileSize)
 
-	bc := NewBandwidthController(int64(bandwidth))
-	smallFile1, _ := bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), int64(smallFileSize))
-	smallFile2, _ := bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), int64(smallFileSize))
-	largeFile1, _ := bc.AppendFileReader(bytes.NewReader(make([]byte, largeFileSize)), int64(largeFileSize))
+	bc := NewBandwidthController(bandwidth)
+	smallFile1, _ := bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), smallFileSize)
+	smallFile2, _ := bc.AppendFileReader(bytes.NewReader(make([]byte, smallFileSize)), smallFileSize)
+	largeFile1, _ := bc.AppendFileReader(bytes.NewReader(make([]byte, largeFileSize)), largeFileSize)
 
 	err := smallFile1.Reader.Close()
 	if err != nil {
@@ -153,7 +153,7 @@ func TestBandwidthControllerFilesCloseBandwidthAllocation(t *testing.T) {
 	waitUntilLimitsAreUpdated()
 	testName := "first close"
 	validateBandwidth(t, testName+": smallFile2", smallFile2.Reader.GetRateLimit(), expectedSmallFileBandwidth)
-	validateBandwidth(t, testName+": largeFile1", largeFile1.Reader.GetRateLimit(), getFileBandwidthWithoutDeviation(int64(bandwidth)-expectedSmallFileBandwidth))
+	validateBandwidth(t, testName+": largeFile1", largeFile1.Reader.GetRateLimit(), getFileBandwidthWithoutDeviation(bandwidth-expectedSmallFileBandwidth))
 	validateBandwidth(t, testName+": KB group", bc.groupsBandwidth[KB], expectedSmallFileBandwidth)
 	validateBandwidth(t, testName+": MB group", bc.groupsBandwidth[MB], bc.bandwidth-expectedSmallFileBandwidth-bc.freeBandwidth)
 	validateBandwidth(t, testName+": GB group", bc.groupsBandwidth[GB], 0)
@@ -166,7 +166,7 @@ func TestBandwidthControllerFilesCloseBandwidthAllocation(t *testing.T) {
 
 	waitUntilLimitsAreUpdated()
 	testName = "second close"
-	validateBandwidth(t, testName+": largeFile1", largeFile1.Reader.GetRateLimit(), getFileBandwidthWithoutDeviation(int64(bandwidth)))
+	validateBandwidth(t, testName+": largeFile1", largeFile1.Reader.GetRateLimit(), getFileBandwidthWithoutDeviation(bandwidth))
 	validateBandwidth(t, testName+": KB group", bc.groupsBandwidth[KB], 0)
 	validateBandwidth(t, testName+": MB group", bc.groupsBandwidth[MB], bc.bandwidth-bc.freeBandwidth)
 	validateBandwidth(t, testName+": GB group", bc.groupsBandwidth[GB], 0)
@@ -180,8 +180,16 @@ func TestBandwidthControllerFilesCloseBandwidthAllocation(t *testing.T) {
 	validateEmpty(t, bc)
 }
 
-func TestBandwidthControllerZeroFileSizeBehavior(t *testing.T) {
+func TestBandwidthControllerZeroBandwidthBehavior(t *testing.T) {
 	bc := NewBandwidthController(0)
+	_, err := bc.AppendFileReader(nil, 1024)
+	if err != InvalidBandwidth {
+		t.Fatalf("didn't get InvalidBandwidth error as expected, error: %v", err)
+	}
+}
+
+func TestBandwidthControllerZeroFileSizeBehavior(t *testing.T) {
+	bc := NewBandwidthController(1024)
 	_, err := bc.AppendFileReader(nil, 0)
 	if err != InvalidFileSize {
 		t.Fatalf("didn't get InvalidFileSize error as expected, error: %v", err)
@@ -190,7 +198,7 @@ func TestBandwidthControllerZeroFileSizeBehavior(t *testing.T) {
 
 func TestBandwidthControllerContextCancelation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	bc := NewBandwidthController(0, WithContext(ctx))
+	bc := NewBandwidthController(1024, WithContext(ctx))
 
 	smallFile1, err := bc.AppendFileReader(nil, 1)
 	if err != nil {
@@ -350,7 +358,7 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			bc := NewBandwidthController(0, WithConfig(c.input))
+			bc := NewBandwidthController(1024, WithConfig(c.input))
 
 			if !reflect.DeepEqual(bc.cfg, c.expected) {
 				t.Fatalf("config mismatch\ngot: %#v\nexpected: %#v", bc.cfg, c.expected)
@@ -364,8 +372,9 @@ func TestBandwidthControllerStableThroughput(t *testing.T) {
 	const fileAmountPerSecond = 200
 	const totalFileAmount = 1000
 	const bandwidth = fileSize * 100 // will take (fileSize * totalFileAmount)/bandwidth seconds
+	const bufferTime = 100 * time.Millisecond
 
-	bc := NewBandwidthController(int64(bandwidth))
+	bc := NewBandwidthController(bandwidth)
 	stopC := make(chan struct{})
 	doneC := make(chan struct{})
 	fileSizeUpdateC := make(chan int, 1)
@@ -374,7 +383,7 @@ func TestBandwidthControllerStableThroughput(t *testing.T) {
 	start := time.Now()
 
 	go continuouslyAppendFiles(t, bc, stopC, doneC, fileSize, fileAmountPerSecond, fileSizeUpdateC, fileAmountPerIntervalUpdateC)
-	time.Sleep(((totalFileAmount / fileAmountPerSecond) * time.Second) - 500*time.Millisecond)
+	time.Sleep(((totalFileAmount / fileAmountPerSecond) * time.Second) - bufferTime)
 	stopC <- struct{}{}
 	<-doneC
 
@@ -387,6 +396,177 @@ func TestBandwidthControllerStableThroughput(t *testing.T) {
 	}
 
 	assertReadTimes(t, elapsed, expectedTime, expectedTime+1)
+}
+
+func TestBandwidthControllerAdaptiveThroughput(t *testing.T) {
+	const fileSize = 1 * 1024 // 1 KB
+	const timeToChangeFileSizeInSeconds = 2
+	const newFileSize = 3 * 1024 // 3 KB
+	const fileAmountPerSecond = 200
+	const timeToChangeFileAmountInSeconds = 1
+	const newFileAmountPerSecond = 100
+	const timeToFinishInSeconds = 2
+	const bandwidth = 100 * 1024 // 100 KB
+	const expectedTotalFileAmount = (fileAmountPerSecond*
+		(timeToChangeFileSizeInSeconds+timeToChangeFileAmountInSeconds) +
+		newFileAmountPerSecond*timeToFinishInSeconds)
+	const expectedTotalSize = (fileSize*fileAmountPerSecond*timeToChangeFileSizeInSeconds +
+		newFileSize*fileAmountPerSecond*timeToChangeFileAmountInSeconds +
+		newFileSize*newFileAmountPerSecond*timeToFinishInSeconds)
+	const expectedTime = expectedTotalSize / bandwidth
+	const bufferTime = 100 * time.Millisecond
+
+	bc := NewBandwidthController(bandwidth)
+	stopC := make(chan struct{})
+	doneC := make(chan struct{})
+	fileSizeUpdateC := make(chan int, 1)
+	fileAmountPerIntervalUpdateC := make(chan int, 1)
+
+	start := time.Now()
+
+	go continuouslyAppendFiles(t, bc, stopC, doneC, fileSize, fileAmountPerSecond, fileSizeUpdateC, fileAmountPerIntervalUpdateC)
+	time.Sleep(timeToChangeFileSizeInSeconds*time.Second - bufferTime)
+	fileSizeUpdateC <- newFileSize
+	time.Sleep(timeToChangeFileAmountInSeconds*time.Second - bufferTime)
+	fileAmountPerIntervalUpdateC <- newFileAmountPerSecond
+	time.Sleep(timeToFinishInSeconds*time.Second - bufferTime)
+	stopC <- struct{}{}
+	<-doneC
+
+	elapsed := time.Since(start)
+	validateEmpty(t, bc)
+
+	if bc.fileCounter != expectedTotalFileAmount {
+		t.Fatalf("file sent different then expected sent: %d expected: %d", bc.fileCounter, expectedTotalFileAmount)
+	}
+
+	assertReadTimes(t, elapsed, expectedTime, expectedTime+1)
+}
+
+func TestBandwidthControllerAdaptiveBandwidth(t *testing.T) {
+	const fileSize = 1 * 1024 // 1 KB
+	const fileAmountPerSecond = 200
+	const bandwidth = 100 * 1024    // 100 KB
+	const newBandwidth = 200 * 1024 // 200 KB
+	const timeToChangeBandwidthInSeconds = 2
+	const timeToFinishInSeconds = 2
+	const expectedTotalFileAmount = fileAmountPerSecond * (timeToChangeBandwidthInSeconds + timeToFinishInSeconds)
+	const expectedTime = (fileSize*fileAmountPerSecond*timeToChangeBandwidthInSeconds/bandwidth +
+		fileSize*fileAmountPerSecond*timeToFinishInSeconds/newBandwidth)
+	const bufferTime = 100 * time.Millisecond
+
+	bc := NewBandwidthController(bandwidth)
+	stopC := make(chan struct{})
+	doneC := make(chan struct{})
+	fileSizeUpdateC := make(chan int, 1)
+	fileAmountPerIntervalUpdateC := make(chan int, 1)
+
+	start := time.Now()
+
+	go continuouslyAppendFiles(t, bc, stopC, doneC, fileSize, fileAmountPerSecond, fileSizeUpdateC, fileAmountPerIntervalUpdateC)
+	time.Sleep(timeToChangeBandwidthInSeconds*time.Second - bufferTime)
+	bc.UpdateBandwidth(newBandwidth)
+	time.Sleep(timeToFinishInSeconds*time.Second - bufferTime)
+	stopC <- struct{}{}
+	<-doneC
+
+	elapsed := time.Since(start)
+	validateEmpty(t, bc)
+
+	if bc.fileCounter != expectedTotalFileAmount {
+		t.Fatalf("file sent different then expected sent: %d expected: %d", bc.fileCounter, expectedTotalFileAmount)
+	}
+
+	assertReadTimes(t, elapsed, expectedTime, expectedTime+1)
+}
+
+func TestBandwidthControllerBurstRecoveryThroughput(t *testing.T) {
+	const fileSize = 1 * 1024 // 1 KB
+	const fileAmountPerSecond = 200
+	const burstFileAmountPerSecond = 1000
+	const timeToBurstInSeconds = 2
+	const timeOfBurstInSeconds = 1
+	const timeToFinishInSeconds = 2
+	const bandwidth = 100 * 1024 // 100 KB
+	const expectedTotalFileAmount = (fileAmountPerSecond*
+		(timeToBurstInSeconds+timeToFinishInSeconds) +
+		burstFileAmountPerSecond*timeOfBurstInSeconds)
+	const expectedTotalSize = fileSize * expectedTotalFileAmount
+	const expectedTime = expectedTotalSize / bandwidth
+	const bufferTime = 100 * time.Millisecond
+
+	bc := NewBandwidthController(bandwidth)
+	stopC := make(chan struct{})
+	doneC := make(chan struct{})
+	fileSizeUpdateC := make(chan int, 1)
+	fileAmountPerIntervalUpdateC := make(chan int, 1)
+
+	start := time.Now()
+
+	go continuouslyAppendFiles(t, bc, stopC, doneC, fileSize, fileAmountPerSecond, fileSizeUpdateC, fileAmountPerIntervalUpdateC)
+	time.Sleep(timeToBurstInSeconds*time.Second - bufferTime)
+	fileAmountPerIntervalUpdateC <- burstFileAmountPerSecond
+	time.Sleep(timeOfBurstInSeconds*time.Second - bufferTime)
+	fileAmountPerIntervalUpdateC <- fileAmountPerSecond
+	time.Sleep(timeToFinishInSeconds*time.Second - bufferTime)
+	stopC <- struct{}{}
+	<-doneC
+
+	elapsed := time.Since(start)
+	validateEmpty(t, bc)
+
+	if bc.fileCounter != expectedTotalFileAmount {
+		t.Fatalf("file sent different then expected sent: %d expected: %d", bc.fileCounter, expectedTotalFileAmount)
+	}
+
+	assertReadTimes(t, elapsed, expectedTime, expectedTime+1)
+}
+
+func TestBandwidthControllerStallingReader(t *testing.T) {
+	const fileSize = 100 * 1024 // 100 KB
+	const partsAmount = 3
+	const bandwidth = fileSize / 3 // fileSize/partsAmount bytes per second
+	const timeToStallInSeconds = 1
+	const timeOfStallInSeconds = 2
+	const expectedTime = fileSize/bandwidth + timeOfStallInSeconds
+
+	bc := NewBandwidthController(bandwidth)
+	file, _ := bc.AppendFileReader(bytes.NewReader(make([]byte, fileSize)), fileSize)
+	buffer := make([]byte, 1024)
+
+	waitUntilLimitsAreUpdated()
+	validateBandwidth(t, "file", file.Reader.GetRateLimit(), getFileBandwidthWithoutDeviation(bandwidth))
+
+	start := time.Now()
+	totalSize := 0
+	for {
+		if time.Since(start) > timeToStallInSeconds*time.Second &&
+			time.Since(start) < (timeToStallInSeconds+timeOfStallInSeconds)*time.Second {
+			time.Sleep(timeOfStallInSeconds * time.Second)
+			continue
+		}
+
+		n, err := file.Reader.Read(buffer)
+		totalSize += n
+		if err != nil {
+			if err != io.EOF {
+				t.Fatalf("unexpected error while reading: %v", err)
+			}
+			break
+		}
+	}
+
+	if int64(totalSize) != file.Size {
+		t.Fatalf("read incomplete data, read: %d expected: %d", totalSize, file.Size)
+	}
+
+	err := file.Reader.Close()
+	if err != nil {
+		t.Fatalf("unexpected error while closing: %v", err)
+	}
+
+	assertReadTimes(t, time.Since(start), expectedTime, expectedTime+1)
+	validateEmpty(t, bc)
 }
 
 func readAllFiles(t *testing.T, files []*File) {

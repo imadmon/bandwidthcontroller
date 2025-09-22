@@ -2,6 +2,7 @@ package bandwidthcontroller
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sync"
 	"time"
@@ -17,6 +18,8 @@ const (
 )
 
 type BandwidthGroup map[int64]*File
+
+var InvalidBandwidth = errors.New("invalid bandwidth")
 
 type BandwidthController struct {
 	cfg             Config
@@ -67,6 +70,10 @@ func (bc *BandwidthController) AppendFileReader(r io.Reader, fileSize int64) (*F
 func (bc *BandwidthController) AppendFileReadCloser(r io.ReadCloser, fileSize int64) (*File, error) {
 	if isContextCancelled(bc.ctx) {
 		return nil, bc.ctx.Err()
+	}
+
+	if bc.bandwidth < getFileMaxBandwidth(1) {
+		return nil, InvalidBandwidth
 	}
 
 	group, err := getGroup(fileSize)
@@ -124,6 +131,19 @@ func (bc *BandwidthController) GetTotalFilesInSystem() int64 {
 
 func (bc *BandwidthController) GetCurrentFilesInSystem() int64 {
 	return bc.filesInSystems
+}
+
+func (bc *BandwidthController) UpdateBandwidth(bandwidth int64) error {
+	if bandwidth < getFileMaxBandwidth(1) {
+		return InvalidBandwidth
+	}
+
+	bc.mu.Lock()
+	bc.bandwidth = bandwidth
+	bc.mu.Unlock()
+
+	bc.updateLimits()
+	return nil
 }
 
 func (bc *BandwidthController) startLimitUpdater() {
