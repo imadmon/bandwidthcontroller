@@ -119,10 +119,14 @@ func TestBandwidthControllerAppendStreamsBandwidthAllocation(t *testing.T) {
 		validateBandwidth(t, testName+": smallStream1", smallStream1.Reader.GetRateLimit(), expectedSmallStreamBandwidth)
 		validateBandwidth(t, testName+": smallStream2", smallStream2.Reader.GetRateLimit(), expectedSmallStreamBandwidth)
 		validateBandwidth(t, testName+": largeStream1", largeStream1.Reader.GetRateLimit(), expectedLargeStreamBandwidth)
-		validateBandwidth(t, testName+": KB group", bc.groupsBandwidth[KB], expectedSmallStreamBandwidth*2)
-		validateBandwidth(t, testName+": MB group", bc.groupsBandwidth[MB], bc.bandwidth-expectedSmallStreamBandwidth*2-bc.freeBandwidth)
-		validateBandwidth(t, testName+": GB group", bc.groupsBandwidth[GB], 0)
-		validateBandwidth(t, testName+": TB group", bc.groupsBandwidth[TB], 0)
+		validateBandwidth(t, testName+": KB group allocated bandwidth", bc.statistics[KB].BandwidthAllocated, int64(float64(bc.bandwidth)*bc.cfg.MinGroupBandwidthPercentage[KB]))
+		validateBandwidth(t, testName+": KB group used bandwidth", bc.statistics[KB].BandwidthUsed, expectedSmallStreamBandwidth*2)
+		validateBandwidth(t, testName+": MB group allocated bandwidth", bc.statistics[MB].BandwidthAllocated, bc.bandwidth-expectedSmallStreamBandwidth*2)
+		validateBandwidth(t, testName+": MB group used bandwidth", bc.statistics[MB].BandwidthUsed, getStreamBandwidthWithoutDeviation(bc.bandwidth-expectedSmallStreamBandwidth*2-bc.freeBandwidth))
+		validateBandwidth(t, testName+": GB group allocated bandwidth", bc.statistics[GB].BandwidthAllocated, 0)
+		validateBandwidth(t, testName+": GB group used bandwidth", bc.statistics[GB].BandwidthUsed, 0)
+		validateBandwidth(t, testName+": TB group allocated bandwidth", bc.statistics[TB].BandwidthAllocated, 0)
+		validateBandwidth(t, testName+": TB group used bandwidth", bc.statistics[TB].BandwidthUsed, 0)
 	}
 
 	largeStream1, _ = bc.AppendStreamReader(bytes.NewReader(make([]byte, largeStreamSize)), largeStreamSize)
@@ -163,10 +167,14 @@ func TestBandwidthControllerStreamsCloseBandwidthAllocation(t *testing.T) {
 	testName := "first close"
 	validateBandwidth(t, testName+": smallStream2", smallStream2.Reader.GetRateLimit(), expectedSmallStreamBandwidth)
 	validateBandwidth(t, testName+": largeStream1", largeStream1.Reader.GetRateLimit(), getStreamBandwidthWithoutDeviation(bandwidth-expectedSmallStreamBandwidth))
-	validateBandwidth(t, testName+": KB group", bc.groupsBandwidth[KB], expectedSmallStreamBandwidth)
-	validateBandwidth(t, testName+": MB group", bc.groupsBandwidth[MB], bc.bandwidth-expectedSmallStreamBandwidth-bc.freeBandwidth)
-	validateBandwidth(t, testName+": GB group", bc.groupsBandwidth[GB], 0)
-	validateBandwidth(t, testName+": TB group", bc.groupsBandwidth[TB], 0)
+	validateBandwidth(t, testName+": KB group allocated bandwidth", bc.statistics[KB].BandwidthAllocated, int64(float64(bc.bandwidth)*bc.cfg.MinGroupBandwidthPercentage[KB]))
+	validateBandwidth(t, testName+": KB group used bandwidth", bc.statistics[KB].BandwidthUsed, expectedSmallStreamBandwidth)
+	validateBandwidth(t, testName+": MB group allocated bandwidth", bc.statistics[MB].BandwidthAllocated, bc.bandwidth-expectedSmallStreamBandwidth)
+	validateBandwidth(t, testName+": MB group used bandwidth", bc.statistics[MB].BandwidthUsed, getStreamBandwidthWithoutDeviation(bc.bandwidth-expectedSmallStreamBandwidth))
+	validateBandwidth(t, testName+": GB group allocated bandwidth", bc.statistics[GB].BandwidthAllocated, 0)
+	validateBandwidth(t, testName+": GB group used bandwidth", bc.statistics[GB].BandwidthUsed, 0)
+	validateBandwidth(t, testName+": TB group allocated bandwidth", bc.statistics[TB].BandwidthAllocated, 0)
+	validateBandwidth(t, testName+": TB group used bandwidth", bc.statistics[TB].BandwidthUsed, 0)
 
 	err = smallStream2.Reader.Close()
 	if err != nil {
@@ -176,10 +184,14 @@ func TestBandwidthControllerStreamsCloseBandwidthAllocation(t *testing.T) {
 	waitUntilLimitsAreUpdated()
 	testName = "second close"
 	validateBandwidth(t, testName+": largeStream1", largeStream1.Reader.GetRateLimit(), getStreamBandwidthWithoutDeviation(bandwidth))
-	validateBandwidth(t, testName+": KB group", bc.groupsBandwidth[KB], 0)
-	validateBandwidth(t, testName+": MB group", bc.groupsBandwidth[MB], bc.bandwidth-bc.freeBandwidth)
-	validateBandwidth(t, testName+": GB group", bc.groupsBandwidth[GB], 0)
-	validateBandwidth(t, testName+": TB group", bc.groupsBandwidth[TB], 0)
+	validateBandwidth(t, testName+": KB group allocated bandwidth", bc.statistics[KB].BandwidthAllocated, 0)
+	validateBandwidth(t, testName+": KB group used bandwidth", bc.statistics[KB].BandwidthUsed, 0)
+	validateBandwidth(t, testName+": MB group allocated bandwidth", bc.statistics[MB].BandwidthAllocated, bc.bandwidth)
+	validateBandwidth(t, testName+": MB group used bandwidth", bc.statistics[MB].BandwidthUsed, getStreamBandwidthWithoutDeviation(bc.bandwidth))
+	validateBandwidth(t, testName+": GB group allocated bandwidth", bc.statistics[GB].BandwidthAllocated, 0)
+	validateBandwidth(t, testName+": GB group used bandwidth", bc.statistics[GB].BandwidthUsed, 0)
+	validateBandwidth(t, testName+": TB group allocated bandwidth", bc.statistics[TB].BandwidthAllocated, 0)
+	validateBandwidth(t, testName+": TB group used bandwidth", bc.statistics[TB].BandwidthUsed, 0)
 
 	err = largeStream1.Reader.Close()
 	if err != nil {

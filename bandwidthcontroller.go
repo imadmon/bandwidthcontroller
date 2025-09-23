@@ -2,31 +2,17 @@ package bandwidthcontroller
 
 import (
 	"context"
-	"errors"
 	"io"
 	"sync"
 	"time"
 )
-
-type GroupType int64
-
-const (
-	KB GroupType = 1024
-	MB GroupType = 1024 * KB
-	GB GroupType = 1024 * MB
-	TB GroupType = 1024 * GB
-)
-
-type BandwidthGroup map[int64]*Stream
-
-var InvalidBandwidth = errors.New("invalid bandwidth")
 
 type BandwidthController struct {
 	cfg              Config
 	streams          map[GroupType]BandwidthGroup
 	bandwidth        int64
 	freeBandwidth    int64
-	groupsBandwidth  map[GroupType]int64
+	statistics       map[GroupType]*BandwidthStatistics
 	mu               sync.Mutex
 	streamCounter    int64
 	streamsInSystems int64
@@ -46,11 +32,11 @@ func NewBandwidthController(bandwidth int64, opts ...Option) *BandwidthControlle
 		},
 		bandwidth:     bandwidth,
 		freeBandwidth: bandwidth,
-		groupsBandwidth: map[GroupType]int64{
-			KB: 0,
-			MB: 0,
-			GB: 0,
-			TB: 0,
+		statistics: map[GroupType]*BandwidthStatistics{
+			KB: &BandwidthStatistics{Pulses: NewPulsesStatistics()},
+			MB: &BandwidthStatistics{Pulses: NewPulsesStatistics()},
+			GB: &BandwidthStatistics{Pulses: NewPulsesStatistics()},
+			TB: &BandwidthStatistics{Pulses: NewPulsesStatistics()},
 		},
 		updaterStopC: make(chan struct{}),
 		ctx:          context.Background(),
@@ -103,6 +89,9 @@ func (bc *BandwidthController) AppendStreamReadCloser(r io.ReadCloser, streamSiz
 	bc.streams[group][streamID] = stream
 	bc.streamsInSystems++
 
+	bc.statistics[group].CurrentPulseAmount++
+	bc.statistics[group].CurrentPulseSize += streamSize
+
 	// first stream -> start updater
 	if bc.streamsInSystems == 1 {
 		go bc.startLimitUpdater()
@@ -133,6 +122,10 @@ func (bc *BandwidthController) GetCurrentStreamsInSystem() int64 {
 	return bc.streamsInSystems
 }
 
+func (bc *BandwidthController) GetStatistics() map[GroupType]*BandwidthStatistics {
+	return bc.statistics
+}
+
 func (bc *BandwidthController) UpdateBandwidth(bandwidth int64) error {
 	if bandwidth < getStreamMaxBandwidth(1) {
 		return InvalidBandwidth
@@ -155,6 +148,7 @@ func (bc *BandwidthController) startLimitUpdater() {
 			return
 		case <-ticker.C:
 			bc.updateLimits()
+			bc.updateStatistics()
 		}
 	}
 }
@@ -181,14 +175,10 @@ func (bc *BandwidthController) updateLimits() {
 	bc.freeBandwidth = insights.bandwidthLeft
 }
 
-type bandwidthInsights struct {
-	bandwidthLeft           int64
-	leftGroupsRemainingSize int64
-}
-
 func (bc *BandwidthController) updateBandwidthGroupLimits(group GroupType, insights *bandwidthInsights, weights streamWeights) {
 	if weights.totalRemainingSize <= 0 || insights.leftGroupsRemainingSize <= 0 {
-		bc.groupsBandwidth[group] = 0
+		bc.statistics[group].BandwidthAllocated = 0
+		bc.statistics[group].BandwidthUsed = 0
 		return
 	}
 
@@ -199,7 +189,7 @@ func (bc *BandwidthController) updateBandwidthGroupLimits(group GroupType, insig
 		groupBandwidth = minGroupBandwidth
 	}
 
-	bc.groupsBandwidth[group] = groupBandwidth
+	bc.statistics[group].BandwidthAllocated = groupBandwidth
 	insights.bandwidthLeft -= groupBandwidth
 	insights.leftGroupsRemainingSize -= weights.totalRemainingSize
 
@@ -237,6 +227,22 @@ func (bc *BandwidthController) updateBandwidthGroupLimits(group GroupType, insig
 	}
 
 	// return left over bandwidth
-	bc.groupsBandwidth[group] -= groupBandwidth
+	bc.statistics[group].BandwidthUsed = bc.statistics[group].BandwidthAllocated - groupBandwidth
 	insights.bandwidthLeft += groupBandwidth
+}
+
+func (bc *BandwidthController) updateStatistics() {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
+	bc.updateGroupStatistics(KB)
+	bc.updateGroupStatistics(MB)
+	bc.updateGroupStatistics(GB)
+	bc.updateGroupStatistics(TB)
+}
+
+func (bc *BandwidthController) updateGroupStatistics(group GroupType) {
+	bc.statistics[group].Pulses.AppendNewPulse(bc.statistics[group].CurrentPulseAmount, bc.statistics[group].CurrentPulseSize)
+	bc.statistics[group].CurrentPulseAmount = 0
+	bc.statistics[group].CurrentPulseSize = 0
 }
