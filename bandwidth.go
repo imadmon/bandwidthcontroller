@@ -15,12 +15,12 @@ type BandwidthGroup map[int64]*Stream
 
 var InvalidBandwidth = errors.New("invalid bandwidth")
 
-type BandwidthStatistics struct {
-	BandwidthAllocated int64
-	BandwidthUsed      int64
-	CurrentPulseAmount int64
-	CurrentPulseSize   int64
-	Pulses             *PulsesStatistics // 1 second statistics
+type BandwidthStats struct {
+	ReservedBandwidth          int64
+	AllocatedBandwidth         int64
+	CurrentPulseIntervalAmount int64
+	CurrentPulseIntervalSize   int64
+	PulseIntervalsStats        *PulsesStats // 1 second stats
 }
 
 type bandwidthInsights struct {

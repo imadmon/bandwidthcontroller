@@ -119,14 +119,14 @@ func TestBandwidthControllerAppendStreamsBandwidthAllocation(t *testing.T) {
 		validateBandwidth(t, testName+": smallStream1", smallStream1.Reader.GetRateLimit(), expectedSmallStreamBandwidth)
 		validateBandwidth(t, testName+": smallStream2", smallStream2.Reader.GetRateLimit(), expectedSmallStreamBandwidth)
 		validateBandwidth(t, testName+": largeStream1", largeStream1.Reader.GetRateLimit(), expectedLargeStreamBandwidth)
-		validateBandwidth(t, testName+": KB group allocated bandwidth", bc.statistics[KB].BandwidthAllocated, int64(float64(bc.bandwidth)*bc.cfg.MinGroupBandwidthPercentage[KB]))
-		validateBandwidth(t, testName+": KB group used bandwidth", bc.statistics[KB].BandwidthUsed, expectedSmallStreamBandwidth*2)
-		validateBandwidth(t, testName+": MB group allocated bandwidth", bc.statistics[MB].BandwidthAllocated, bc.bandwidth-expectedSmallStreamBandwidth*2)
-		validateBandwidth(t, testName+": MB group used bandwidth", bc.statistics[MB].BandwidthUsed, getStreamBandwidthWithoutDeviation(bc.bandwidth-expectedSmallStreamBandwidth*2-bc.freeBandwidth))
-		validateBandwidth(t, testName+": GB group allocated bandwidth", bc.statistics[GB].BandwidthAllocated, 0)
-		validateBandwidth(t, testName+": GB group used bandwidth", bc.statistics[GB].BandwidthUsed, 0)
-		validateBandwidth(t, testName+": TB group allocated bandwidth", bc.statistics[TB].BandwidthAllocated, 0)
-		validateBandwidth(t, testName+": TB group used bandwidth", bc.statistics[TB].BandwidthUsed, 0)
+		validateBandwidth(t, testName+": KB group allocated bandwidth", bc.stats[KB].ReservedBandwidth, int64(float64(bc.bandwidth)*bc.cfg.MinGroupBandwidthPercentShare[KB]))
+		validateBandwidth(t, testName+": KB group used bandwidth", bc.stats[KB].AllocatedBandwidth, expectedSmallStreamBandwidth*2)
+		validateBandwidth(t, testName+": MB group allocated bandwidth", bc.stats[MB].ReservedBandwidth, bc.bandwidth-expectedSmallStreamBandwidth*2)
+		validateBandwidth(t, testName+": MB group used bandwidth", bc.stats[MB].AllocatedBandwidth, getStreamBandwidthWithoutDeviation(bc.bandwidth-expectedSmallStreamBandwidth*2-bc.freeBandwidth))
+		validateBandwidth(t, testName+": GB group allocated bandwidth", bc.stats[GB].ReservedBandwidth, 0)
+		validateBandwidth(t, testName+": GB group used bandwidth", bc.stats[GB].AllocatedBandwidth, 0)
+		validateBandwidth(t, testName+": TB group allocated bandwidth", bc.stats[TB].ReservedBandwidth, 0)
+		validateBandwidth(t, testName+": TB group used bandwidth", bc.stats[TB].AllocatedBandwidth, 0)
 	}
 
 	largeStream1, _ = bc.AppendStreamReader(bytes.NewReader(make([]byte, largeStreamSize)), largeStreamSize)
@@ -167,14 +167,14 @@ func TestBandwidthControllerStreamsCloseBandwidthAllocation(t *testing.T) {
 	testName := "first close"
 	validateBandwidth(t, testName+": smallStream2", smallStream2.Reader.GetRateLimit(), expectedSmallStreamBandwidth)
 	validateBandwidth(t, testName+": largeStream1", largeStream1.Reader.GetRateLimit(), getStreamBandwidthWithoutDeviation(bandwidth-expectedSmallStreamBandwidth))
-	validateBandwidth(t, testName+": KB group allocated bandwidth", bc.statistics[KB].BandwidthAllocated, int64(float64(bc.bandwidth)*bc.cfg.MinGroupBandwidthPercentage[KB]))
-	validateBandwidth(t, testName+": KB group used bandwidth", bc.statistics[KB].BandwidthUsed, expectedSmallStreamBandwidth)
-	validateBandwidth(t, testName+": MB group allocated bandwidth", bc.statistics[MB].BandwidthAllocated, bc.bandwidth-expectedSmallStreamBandwidth)
-	validateBandwidth(t, testName+": MB group used bandwidth", bc.statistics[MB].BandwidthUsed, getStreamBandwidthWithoutDeviation(bc.bandwidth-expectedSmallStreamBandwidth))
-	validateBandwidth(t, testName+": GB group allocated bandwidth", bc.statistics[GB].BandwidthAllocated, 0)
-	validateBandwidth(t, testName+": GB group used bandwidth", bc.statistics[GB].BandwidthUsed, 0)
-	validateBandwidth(t, testName+": TB group allocated bandwidth", bc.statistics[TB].BandwidthAllocated, 0)
-	validateBandwidth(t, testName+": TB group used bandwidth", bc.statistics[TB].BandwidthUsed, 0)
+	validateBandwidth(t, testName+": KB group allocated bandwidth", bc.stats[KB].ReservedBandwidth, int64(float64(bc.bandwidth)*bc.cfg.MinGroupBandwidthPercentShare[KB]))
+	validateBandwidth(t, testName+": KB group used bandwidth", bc.stats[KB].AllocatedBandwidth, expectedSmallStreamBandwidth)
+	validateBandwidth(t, testName+": MB group allocated bandwidth", bc.stats[MB].ReservedBandwidth, bc.bandwidth-expectedSmallStreamBandwidth)
+	validateBandwidth(t, testName+": MB group used bandwidth", bc.stats[MB].AllocatedBandwidth, getStreamBandwidthWithoutDeviation(bc.bandwidth-expectedSmallStreamBandwidth))
+	validateBandwidth(t, testName+": GB group allocated bandwidth", bc.stats[GB].ReservedBandwidth, 0)
+	validateBandwidth(t, testName+": GB group used bandwidth", bc.stats[GB].AllocatedBandwidth, 0)
+	validateBandwidth(t, testName+": TB group allocated bandwidth", bc.stats[TB].ReservedBandwidth, 0)
+	validateBandwidth(t, testName+": TB group used bandwidth", bc.stats[TB].AllocatedBandwidth, 0)
 
 	err = smallStream2.Reader.Close()
 	if err != nil {
@@ -184,14 +184,14 @@ func TestBandwidthControllerStreamsCloseBandwidthAllocation(t *testing.T) {
 	waitUntilLimitsAreUpdated()
 	testName = "second close"
 	validateBandwidth(t, testName+": largeStream1", largeStream1.Reader.GetRateLimit(), getStreamBandwidthWithoutDeviation(bandwidth))
-	validateBandwidth(t, testName+": KB group allocated bandwidth", bc.statistics[KB].BandwidthAllocated, 0)
-	validateBandwidth(t, testName+": KB group used bandwidth", bc.statistics[KB].BandwidthUsed, 0)
-	validateBandwidth(t, testName+": MB group allocated bandwidth", bc.statistics[MB].BandwidthAllocated, bc.bandwidth)
-	validateBandwidth(t, testName+": MB group used bandwidth", bc.statistics[MB].BandwidthUsed, getStreamBandwidthWithoutDeviation(bc.bandwidth))
-	validateBandwidth(t, testName+": GB group allocated bandwidth", bc.statistics[GB].BandwidthAllocated, 0)
-	validateBandwidth(t, testName+": GB group used bandwidth", bc.statistics[GB].BandwidthUsed, 0)
-	validateBandwidth(t, testName+": TB group allocated bandwidth", bc.statistics[TB].BandwidthAllocated, 0)
-	validateBandwidth(t, testName+": TB group used bandwidth", bc.statistics[TB].BandwidthUsed, 0)
+	validateBandwidth(t, testName+": KB group allocated bandwidth", bc.stats[KB].ReservedBandwidth, 0)
+	validateBandwidth(t, testName+": KB group used bandwidth", bc.stats[KB].AllocatedBandwidth, 0)
+	validateBandwidth(t, testName+": MB group allocated bandwidth", bc.stats[MB].ReservedBandwidth, bc.bandwidth)
+	validateBandwidth(t, testName+": MB group used bandwidth", bc.stats[MB].AllocatedBandwidth, getStreamBandwidthWithoutDeviation(bc.bandwidth))
+	validateBandwidth(t, testName+": GB group allocated bandwidth", bc.stats[GB].ReservedBandwidth, 0)
+	validateBandwidth(t, testName+": GB group used bandwidth", bc.stats[GB].AllocatedBandwidth, 0)
+	validateBandwidth(t, testName+": TB group allocated bandwidth", bc.stats[TB].ReservedBandwidth, 0)
+	validateBandwidth(t, testName+": TB group used bandwidth", bc.stats[TB].AllocatedBandwidth, 0)
 
 	err = largeStream1.Reader.Close()
 	if err != nil {
@@ -246,47 +246,47 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 
 	cases := []struct {
 		name     string
-		input    Config
-		expected Config
+		input    ControllerConfig
+		expected ControllerConfig
 	}{
 		{
 			name:  "no overrides uses defaults",
-			input: Config{},
-			expected: Config{
-				BandwidthUpdaterInterval:    defaults.BandwidthUpdaterInterval,
-				MinGroupBandwidthPercentage: defaults.MinGroupBandwidthPercentage,
-				MinStreamBandwidthInBytes:   defaults.MinStreamBandwidthInBytes,
+			input: ControllerConfig{},
+			expected: ControllerConfig{
+				BandwidthUpdaterInterval:        defaults.BandwidthUpdaterInterval,
+				MinGroupBandwidthPercentShare:   defaults.MinGroupBandwidthPercentShare,
+				MinStreamBandwidthInBytesPerSec: defaults.MinStreamBandwidthInBytesPerSec,
 			},
 		},
 		{
 			name: "override only BandwidthUpdaterInterval",
-			input: func() Config {
+			input: func() ControllerConfig {
 				interval := 500 * time.Millisecond
-				return Config{BandwidthUpdaterInterval: &interval}
+				return ControllerConfig{BandwidthUpdaterInterval: &interval}
 			}(),
-			expected: func() Config {
+			expected: func() ControllerConfig {
 				interval := 500 * time.Millisecond
-				return Config{
-					BandwidthUpdaterInterval:    &interval,
-					MinGroupBandwidthPercentage: defaults.MinGroupBandwidthPercentage,
-					MinStreamBandwidthInBytes:   defaults.MinStreamBandwidthInBytes,
+				return ControllerConfig{
+					BandwidthUpdaterInterval:        &interval,
+					MinGroupBandwidthPercentShare:   defaults.MinGroupBandwidthPercentShare,
+					MinStreamBandwidthInBytesPerSec: defaults.MinStreamBandwidthInBytesPerSec,
 				}
 			}(),
 		},
 		{
-			name: "override only MinGroupBandwidthPercentage",
-			input: Config{
-				MinGroupBandwidthPercentage: map[GroupType]float64{
+			name: "override only MinGroupBandwidthPercentShare",
+			input: ControllerConfig{
+				MinGroupBandwidthPercentShare: map[GroupType]float64{
 					KB: 0.10,
 					MB: 0.20,
 					GB: 0.30,
 					TB: 0.40,
 				},
 			},
-			expected: Config{
-				BandwidthUpdaterInterval:  defaults.BandwidthUpdaterInterval,
-				MinStreamBandwidthInBytes: defaults.MinStreamBandwidthInBytes,
-				MinGroupBandwidthPercentage: map[GroupType]float64{
+			expected: ControllerConfig{
+				BandwidthUpdaterInterval:        defaults.BandwidthUpdaterInterval,
+				MinStreamBandwidthInBytesPerSec: defaults.MinStreamBandwidthInBytesPerSec,
+				MinGroupBandwidthPercentShare: map[GroupType]float64{
 					KB: 0.10,
 					MB: 0.20,
 					GB: 0.30,
@@ -295,19 +295,19 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "override only MinStreamBandwidthInBytes",
-			input: Config{
-				MinStreamBandwidthInBytes: map[GroupType]int64{
+			name: "override only MinStreamBandwidthInBytesPerSec",
+			input: ControllerConfig{
+				MinStreamBandwidthInBytesPerSec: map[GroupType]int64{
 					KB: 10,
 					MB: 20,
 					GB: 30,
 					TB: 40,
 				},
 			},
-			expected: Config{
-				BandwidthUpdaterInterval:    defaults.BandwidthUpdaterInterval,
-				MinGroupBandwidthPercentage: defaults.MinGroupBandwidthPercentage,
-				MinStreamBandwidthInBytes: map[GroupType]int64{
+			expected: ControllerConfig{
+				BandwidthUpdaterInterval:      defaults.BandwidthUpdaterInterval,
+				MinGroupBandwidthPercentShare: defaults.MinGroupBandwidthPercentShare,
+				MinStreamBandwidthInBytesPerSec: map[GroupType]int64{
 					KB: 10,
 					MB: 20,
 					GB: 30,
@@ -316,12 +316,12 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "override both BandwidthUpdaterInterval and MinStreamBandwidthInBytes",
-			input: func() Config {
+			name: "override both BandwidthUpdaterInterval and MinStreamBandwidthInBytesPerSec",
+			input: func() ControllerConfig {
 				interval := 1 * time.Second
-				return Config{
+				return ControllerConfig{
 					BandwidthUpdaterInterval: &interval,
-					MinStreamBandwidthInBytes: map[GroupType]int64{
+					MinStreamBandwidthInBytesPerSec: map[GroupType]int64{
 						KB: 10,
 						MB: 20,
 						GB: 30,
@@ -329,12 +329,12 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 					},
 				}
 			}(),
-			expected: func() Config {
+			expected: func() ControllerConfig {
 				interval := 1 * time.Second
-				return Config{
-					BandwidthUpdaterInterval:    &interval,
-					MinGroupBandwidthPercentage: defaults.MinGroupBandwidthPercentage,
-					MinStreamBandwidthInBytes: map[GroupType]int64{
+				return ControllerConfig{
+					BandwidthUpdaterInterval:      &interval,
+					MinGroupBandwidthPercentShare: defaults.MinGroupBandwidthPercentShare,
+					MinStreamBandwidthInBytesPerSec: map[GroupType]int64{
 						KB: 10,
 						MB: 20,
 						GB: 30,
@@ -344,30 +344,30 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 			}(),
 		},
 		{
-			name: "override both MinStreamBandwidthInBytes and MinGroupBandwidthPercentage",
-			input: Config{
-				MinStreamBandwidthInBytes: map[GroupType]int64{
+			name: "override both MinStreamBandwidthInBytesPerSec and MinGroupBandwidthPercentShare",
+			input: ControllerConfig{
+				MinStreamBandwidthInBytesPerSec: map[GroupType]int64{
 					KB: 10,
 					MB: 20,
 					GB: 30,
 					TB: 40,
 				},
-				MinGroupBandwidthPercentage: map[GroupType]float64{
+				MinGroupBandwidthPercentShare: map[GroupType]float64{
 					KB: 0.10,
 					MB: 0.20,
 					GB: 0.30,
 					TB: 0.40,
 				},
 			},
-			expected: Config{
+			expected: ControllerConfig{
 				BandwidthUpdaterInterval: defaults.BandwidthUpdaterInterval,
-				MinStreamBandwidthInBytes: map[GroupType]int64{
+				MinStreamBandwidthInBytesPerSec: map[GroupType]int64{
 					KB: 10,
 					MB: 20,
 					GB: 30,
 					TB: 40,
 				},
-				MinGroupBandwidthPercentage: map[GroupType]float64{
+				MinGroupBandwidthPercentShare: map[GroupType]float64{
 					KB: 0.10,
 					MB: 0.20,
 					GB: 0.30,

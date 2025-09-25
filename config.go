@@ -2,23 +2,23 @@ package bandwidthcontroller
 
 import "time"
 
-type Config struct {
-	BandwidthUpdaterInterval    *time.Duration
-	MinGroupBandwidthPercentage map[GroupType]float64
-	MinStreamBandwidthInBytes   map[GroupType]int64
+type ControllerConfig struct {
+	BandwidthUpdaterInterval        *time.Duration
+	MinGroupBandwidthPercentShare   map[GroupType]float64 // values in [0.01, 1.00]
+	MinStreamBandwidthInBytesPerSec map[GroupType]int64
 }
 
-func defaultConfig() Config {
+func defaultConfig() ControllerConfig {
 	bandwidthUpdaterInterval := 200 * time.Millisecond
-	return Config{
+	return ControllerConfig{
 		BandwidthUpdaterInterval: &bandwidthUpdaterInterval,
-		MinGroupBandwidthPercentage: map[GroupType]float64{
+		MinGroupBandwidthPercentShare: map[GroupType]float64{
 			KB: 0.10,
 			MB: 0.10,
 			GB: 0.10,
 			TB: 0.10,
 		},
-		MinStreamBandwidthInBytes: map[GroupType]int64{
+		MinStreamBandwidthInBytesPerSec: map[GroupType]int64{
 			KB: int64(KB / 10),
 			MB: int64(MB / 10),
 			GB: int64(GB / 10),

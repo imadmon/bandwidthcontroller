@@ -1,44 +1,44 @@
 package bandwidthcontroller
 
-const PulsesAmount = 5
+const PulsesIntervalsAmount = 5
 
-type PulsesStatistics struct {
+type PulsesStats struct {
 	TotalAmount    int64
 	TotalSize      int64
 	PulseAvgAmount int64
 	PulseAvgSize   int64
-	Pulses         [PulsesAmount]*PulseStatistics // index 0 == newest
+	PulseIntervals [PulsesIntervalsAmount]*PulseStats // index 0 == newest
 }
 
-type PulseStatistics struct {
+type PulseStats struct {
 	NewStreamsAmount    int64
 	NewStreamsTotalSize int64
 }
 
-func NewPulsesStatistics() *PulsesStatistics {
-	return &PulsesStatistics{
-		Pulses: [PulsesAmount]*PulseStatistics{},
+func NewPulsesStats() *PulsesStats {
+	return &PulsesStats{
+		PulseIntervals: [PulsesIntervalsAmount]*PulseStats{},
 	}
 }
 
-func (ps *PulsesStatistics) AppendNewPulse(newStreamsAmount, newStreamsTotalSize int64) {
-	prevPulse := &PulseStatistics{
+func (ps *PulsesStats) AppendNewPulse(newStreamsAmount, newStreamsTotalSize int64) {
+	prevPulse := &PulseStats{
 		NewStreamsAmount:    newStreamsAmount,
 		NewStreamsTotalSize: newStreamsTotalSize,
 	}
-	for i := 0; i < PulsesAmount; i++ {
-		if ps.Pulses[i] == nil {
-			ps.Pulses[i] = prevPulse
+	for i := 0; i < PulsesIntervalsAmount; i++ {
+		if ps.PulseIntervals[i] == nil {
+			ps.PulseIntervals[i] = prevPulse
 			break
 		}
 
-		t := ps.Pulses[i]
-		ps.Pulses[i] = prevPulse
+		t := ps.PulseIntervals[i]
+		ps.PulseIntervals[i] = prevPulse
 		prevPulse = t
 	}
 
 	ps.TotalAmount += newStreamsAmount - prevPulse.NewStreamsAmount
 	ps.TotalSize += newStreamsTotalSize - prevPulse.NewStreamsTotalSize
-	ps.PulseAvgAmount = ps.TotalAmount / PulsesAmount
-	ps.PulseAvgSize = ps.TotalSize / PulsesAmount
+	ps.PulseAvgAmount = ps.TotalAmount / PulsesIntervalsAmount
+	ps.PulseAvgSize = ps.TotalSize / PulsesIntervalsAmount
 }
