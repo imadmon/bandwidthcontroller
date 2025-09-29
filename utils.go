@@ -41,7 +41,7 @@ func getStreamsSortedWeights(streams BandwidthGroup) streamWeights {
 
 	i := 0
 	for id, stream := range streams {
-		remainingSize := stream.Size - stream.Reader.GetBytesRead()
+		remainingSize := stream.Size - stream.GetBytesRead()
 		if remainingSize > 0 {
 			weight := 1.0 / float64(remainingSize)
 			result.totalWeights += weight

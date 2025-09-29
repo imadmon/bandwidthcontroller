@@ -22,7 +22,7 @@ func TestBandwidthControllerMultipleSameSizeStreams(t *testing.T) {
 		streams[i], _ = bc.AppendStreamReader(bytes.NewReader(make([]byte, streamSize)), streamSize)
 		waitUntilLimitsAreUpdated()
 		for j := 0; j <= i; j++ {
-			validateBandwidth(t, fmt.Sprintf("lap: #%d stream #%d", i, j), streams[j].Reader.GetRateLimit(), bandwidth/int64(i+1))
+			validateBandwidth(t, fmt.Sprintf("lap: #%d stream #%d", i, j), streams[j].GetRateLimit(), bandwidth/int64(i+1))
 		}
 	}
 
@@ -60,16 +60,16 @@ func TestBandwidthControllerMaxStreamBandwidth(t *testing.T) {
 	bandwidthContorller := NewBandwidthController(bandwidth)
 
 	smallStream1, _ := bandwidthContorller.AppendStreamReader(bytes.NewReader(make([]byte, smallStreamSize)), smallStreamSize)
-	validateBandwidth(t, "first add: smallStream1", smallStream1.Reader.GetRateLimit(), smallStreamMaxBandwidth)
+	validateBandwidth(t, "first add: smallStream1", smallStream1.GetRateLimit(), smallStreamMaxBandwidth)
 
 	smallStream2, _ := bandwidthContorller.AppendStreamReader(bytes.NewReader(make([]byte, smallStreamSize)), smallStreamSize)
-	validateBandwidth(t, "second add: smallStream1", smallStream1.Reader.GetRateLimit(), smallStreamMaxBandwidth)
-	validateBandwidth(t, "second add: smallStream2", smallStream2.Reader.GetRateLimit(), smallStreamMaxBandwidth)
+	validateBandwidth(t, "second add: smallStream1", smallStream1.GetRateLimit(), smallStreamMaxBandwidth)
+	validateBandwidth(t, "second add: smallStream2", smallStream2.GetRateLimit(), smallStreamMaxBandwidth)
 
 	largeStream1, _ := bandwidthContorller.AppendStreamReader(bytes.NewReader(make([]byte, largeStreamSize)), largeStreamSize)
-	validateBandwidth(t, "third add: smallStream1", smallStream1.Reader.GetRateLimit(), smallStreamMaxBandwidth)
-	validateBandwidth(t, "third add: smallStream2", smallStream2.Reader.GetRateLimit(), smallStreamMaxBandwidth)
-	validateBandwidth(t, "third add: largeStream1", largeStream1.Reader.GetRateLimit(), largeStreamMaxBandwidth)
+	validateBandwidth(t, "third add: smallStream1", smallStream1.GetRateLimit(), smallStreamMaxBandwidth)
+	validateBandwidth(t, "third add: smallStream2", smallStream2.GetRateLimit(), smallStreamMaxBandwidth)
+	validateBandwidth(t, "third add: largeStream1", largeStream1.GetRateLimit(), largeStreamMaxBandwidth)
 }
 
 func TestBandwidthControllerFreeBandwidthAllocation(t *testing.T) {
@@ -91,9 +91,9 @@ func TestBandwidthControllerFreeBandwidthAllocation(t *testing.T) {
 	stream3, _ := bandwidthContorller.AppendStreamReader(bytes.NewReader(make([]byte, streamSize)), streamSize)
 
 	waitUntilLimitsAreUpdated()
-	bandwidthAmounts[stream1.Reader.GetRateLimit()]++
-	bandwidthAmounts[stream2.Reader.GetRateLimit()]++
-	bandwidthAmounts[stream3.Reader.GetRateLimit()]++
+	bandwidthAmounts[stream1.GetRateLimit()]++
+	bandwidthAmounts[stream2.GetRateLimit()]++
+	bandwidthAmounts[stream3.GetRateLimit()]++
 
 	for b, amount := range expectedBandwidthAmounts {
 		if bandwidthAmounts[b] != amount {
@@ -116,9 +116,9 @@ func TestBandwidthControllerAppendStreamsBandwidthAllocation(t *testing.T) {
 
 	assertExpectedResult := func(testName string) {
 		waitUntilLimitsAreUpdated()
-		validateBandwidth(t, testName+": smallStream1", smallStream1.Reader.GetRateLimit(), expectedSmallStreamBandwidth)
-		validateBandwidth(t, testName+": smallStream2", smallStream2.Reader.GetRateLimit(), expectedSmallStreamBandwidth)
-		validateBandwidth(t, testName+": largeStream1", largeStream1.Reader.GetRateLimit(), expectedLargeStreamBandwidth)
+		validateBandwidth(t, testName+": smallStream1", smallStream1.GetRateLimit(), expectedSmallStreamBandwidth)
+		validateBandwidth(t, testName+": smallStream2", smallStream2.GetRateLimit(), expectedSmallStreamBandwidth)
+		validateBandwidth(t, testName+": largeStream1", largeStream1.GetRateLimit(), expectedLargeStreamBandwidth)
 		validateBandwidth(t, testName+": KB group allocated bandwidth", bc.stats[KB].ReservedBandwidth, int64(float64(bc.bandwidth)*bc.cfg.MinGroupBandwidthPercentShare[KB]))
 		validateBandwidth(t, testName+": KB group used bandwidth", bc.stats[KB].AllocatedBandwidth, expectedSmallStreamBandwidth*2)
 		validateBandwidth(t, testName+": MB group allocated bandwidth", bc.stats[MB].ReservedBandwidth, bc.bandwidth-expectedSmallStreamBandwidth*2)
@@ -158,15 +158,15 @@ func TestBandwidthControllerStreamsCloseBandwidthAllocation(t *testing.T) {
 	smallStream2, _ := bc.AppendStreamReader(bytes.NewReader(make([]byte, smallStreamSize)), smallStreamSize)
 	largeStream1, _ := bc.AppendStreamReader(bytes.NewReader(make([]byte, largeStreamSize)), largeStreamSize)
 
-	err := smallStream1.Reader.Close()
+	err := smallStream1.Close()
 	if err != nil {
 		t.Fatalf("got error while closing smallStream1: %v", err)
 	}
 
 	waitUntilLimitsAreUpdated()
 	testName := "first close"
-	validateBandwidth(t, testName+": smallStream2", smallStream2.Reader.GetRateLimit(), expectedSmallStreamBandwidth)
-	validateBandwidth(t, testName+": largeStream1", largeStream1.Reader.GetRateLimit(), getStreamBandwidthWithoutDeviation(bandwidth-expectedSmallStreamBandwidth))
+	validateBandwidth(t, testName+": smallStream2", smallStream2.GetRateLimit(), expectedSmallStreamBandwidth)
+	validateBandwidth(t, testName+": largeStream1", largeStream1.GetRateLimit(), getStreamBandwidthWithoutDeviation(bandwidth-expectedSmallStreamBandwidth))
 	validateBandwidth(t, testName+": KB group allocated bandwidth", bc.stats[KB].ReservedBandwidth, int64(float64(bc.bandwidth)*bc.cfg.MinGroupBandwidthPercentShare[KB]))
 	validateBandwidth(t, testName+": KB group used bandwidth", bc.stats[KB].AllocatedBandwidth, expectedSmallStreamBandwidth)
 	validateBandwidth(t, testName+": MB group allocated bandwidth", bc.stats[MB].ReservedBandwidth, bc.bandwidth-expectedSmallStreamBandwidth)
@@ -176,14 +176,14 @@ func TestBandwidthControllerStreamsCloseBandwidthAllocation(t *testing.T) {
 	validateBandwidth(t, testName+": TB group allocated bandwidth", bc.stats[TB].ReservedBandwidth, 0)
 	validateBandwidth(t, testName+": TB group used bandwidth", bc.stats[TB].AllocatedBandwidth, 0)
 
-	err = smallStream2.Reader.Close()
+	err = smallStream2.Close()
 	if err != nil {
 		t.Fatalf("got error while closing smallStream2: %v", err)
 	}
 
 	waitUntilLimitsAreUpdated()
 	testName = "second close"
-	validateBandwidth(t, testName+": largeStream1", largeStream1.Reader.GetRateLimit(), getStreamBandwidthWithoutDeviation(bandwidth))
+	validateBandwidth(t, testName+": largeStream1", largeStream1.GetRateLimit(), getStreamBandwidthWithoutDeviation(bandwidth))
 	validateBandwidth(t, testName+": KB group allocated bandwidth", bc.stats[KB].ReservedBandwidth, 0)
 	validateBandwidth(t, testName+": KB group used bandwidth", bc.stats[KB].AllocatedBandwidth, 0)
 	validateBandwidth(t, testName+": MB group allocated bandwidth", bc.stats[MB].ReservedBandwidth, bc.bandwidth)
@@ -193,7 +193,7 @@ func TestBandwidthControllerStreamsCloseBandwidthAllocation(t *testing.T) {
 	validateBandwidth(t, testName+": TB group allocated bandwidth", bc.stats[TB].ReservedBandwidth, 0)
 	validateBandwidth(t, testName+": TB group used bandwidth", bc.stats[TB].AllocatedBandwidth, 0)
 
-	err = largeStream1.Reader.Close()
+	err = largeStream1.Close()
 	if err != nil {
 		t.Fatalf("got error while closing largeStream1: %v", err)
 	}
@@ -233,7 +233,7 @@ func TestBandwidthControllerContextCancelation(t *testing.T) {
 		t.Fatalf("didn't get context.Canceled as expected, error: %v", err)
 	}
 
-	err = smallStream1.Reader.Close()
+	err = smallStream1.Close()
 	if err != nil {
 		t.Fatalf("got error while closing smallStream1: %v", err)
 	}
@@ -556,7 +556,7 @@ func TestBandwidthControllerStallingReader(t *testing.T) {
 	buffer := make([]byte, 1024)
 
 	waitUntilLimitsAreUpdated()
-	validateBandwidth(t, "stream", stream.Reader.GetRateLimit(), getStreamBandwidthWithoutDeviation(bandwidth))
+	validateBandwidth(t, "stream", stream.GetRateLimit(), getStreamBandwidthWithoutDeviation(bandwidth))
 
 	start := time.Now()
 	totalSize := 0
@@ -567,7 +567,7 @@ func TestBandwidthControllerStallingReader(t *testing.T) {
 			continue
 		}
 
-		n, err := stream.Reader.Read(buffer)
+		n, err := stream.Read(buffer)
 		totalSize += n
 		if err != nil {
 			if err != io.EOF {
@@ -581,7 +581,7 @@ func TestBandwidthControllerStallingReader(t *testing.T) {
 		t.Fatalf("read incomplete data, read: %d expected: %d", totalSize, stream.Size)
 	}
 
-	err := stream.Reader.Close()
+	err := stream.Close()
 	if err != nil {
 		t.Fatalf("unexpected error while closing: %v", err)
 	}
@@ -605,7 +605,7 @@ func readAllStreams(t *testing.T, streams []*Stream) {
 }
 
 func readStream(t *testing.T, stream *Stream) {
-	n, err := io.Copy(io.Discard, stream.Reader)
+	n, err := io.Copy(io.Discard, stream)
 
 	if err != nil && err != io.EOF {
 		t.Fatalf("unexpected error while reading: %v", err)
@@ -615,7 +615,7 @@ func readStream(t *testing.T, stream *Stream) {
 		t.Fatalf("read incomplete data, read: %d expected: %d", n, stream.Size)
 	}
 
-	err = stream.Reader.Close()
+	err = stream.Close()
 	if err != nil {
 		t.Fatalf("unexpected error while closing: %v", err)
 	}

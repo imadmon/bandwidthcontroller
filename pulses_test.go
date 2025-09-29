@@ -38,12 +38,12 @@ func TestPulsesAppendNewPulse(t *testing.T) {
 		}
 
 		expectedTotalsValue := (int64(i) - (PulsesIntervalsAmount / 2)) * PulsesIntervalsAmount
+		expectedAvgsValue := expectedTotalsValue / PulsesIntervalsAmount
 		if i < PulsesIntervalsAmount-1 {
 			smallValuesSum += i
 			expectedTotalsValue = int64(smallValuesSum)
+			expectedAvgsValue = expectedTotalsValue / int64(i+1)
 		}
-
-		expectedAvgsValue := expectedTotalsValue / PulsesIntervalsAmount
 
 		if stats.TotalAmount != expectedTotalsValue || stats.TotalSize != expectedTotalsValue {
 			t.Fatalf("unexpected PulsesStats total amount or size on lap #%d, got: amount=%d size=%d expected both values to be: %d", i, stats.TotalAmount, stats.TotalSize, expectedTotalsValue)
@@ -51,6 +51,24 @@ func TestPulsesAppendNewPulse(t *testing.T) {
 
 		if stats.PulseAvgAmount != expectedAvgsValue || stats.PulseAvgSize != expectedAvgsValue {
 			t.Fatalf("unexpected PulsesStats avg amount or size on lap #%d, got: avg amount=%d avg size=%d expected both values to be: %d", i, stats.PulseAvgAmount, stats.PulseAvgSize, expectedAvgsValue)
+		}
+	}
+}
+
+func TestPulsesAppendEmptyPulses(t *testing.T) {
+	stats := NewPulsesStats()
+	sum := 0
+
+	for i := 1; i <= PulsesIntervalsAmount; i++ {
+		stats.AppendNewPulse(int64(i), int64(i))
+		sum += i
+	}
+
+	for i := 1; i <= PulsesIntervalsAmount; i++ {
+		stats.AppendNewPulse(0, 0)
+		sum -= i
+		if stats.TotalAmount != int64(sum) || stats.TotalSize != int64(sum) {
+			t.Fatalf("unexpected PulsesStats total amount or size on lap #%d, got: amount=%d size=%d expected both values to be: %d", i, stats.TotalAmount, stats.TotalSize, sum)
 		}
 	}
 }

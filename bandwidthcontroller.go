@@ -105,7 +105,7 @@ func (bc *BandwidthController) removeStream(group GroupType, streamID int64) {
 	defer bc.mu.Unlock()
 
 	bc.streamsInSystems--
-	bc.freeBandwidth += bc.streams[group][streamID].Reader.GetRateLimit()
+	bc.freeBandwidth += bc.streams[group][streamID].GetRateLimit()
 	delete(bc.streams[group], streamID)
 
 	// no more streams -> stop updater
@@ -145,6 +145,8 @@ func (bc *BandwidthController) startLimitUpdater() {
 		select {
 		case <-bc.updaterStopC:
 			ticker.Stop()
+			bc.updateLimits()
+			bc.updateStatistics()
 			return
 		case <-ticker.C:
 			bc.updateLimits()
@@ -201,7 +203,7 @@ func (bc *BandwidthController) updateBandwidthGroupLimits(group GroupType, insig
 		newLimit := int64(float64(groupBandwidth) * ratio)
 
 		// no point in allocating bandwidth larger then the bandwidth required for completing the stream in one pulse
-		maxBandwidth := getStreamMaxBandwidth(stream.Size - stream.Reader.GetBytesRead())
+		maxBandwidth := getStreamMaxBandwidth(stream.Size - stream.GetBytesRead())
 		if newLimit > maxBandwidth {
 			newLimit = maxBandwidth
 		} else {
@@ -221,8 +223,8 @@ func (bc *BandwidthController) updateBandwidthGroupLimits(group GroupType, insig
 
 		groupBandwidth -= newLimit
 
-		if stream.Reader.GetRateLimit() != newLimit {
-			stream.Reader.UpdateRateLimit(newLimit)
+		if stream.GetRateLimit() != newLimit {
+			stream.UpdateRateLimit(newLimit)
 		}
 	}
 

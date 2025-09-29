@@ -26,9 +26,15 @@ func (ps *PulsesStats) AppendNewPulse(newStreamsAmount, newStreamsTotalSize int6
 		NewStreamsAmount:    newStreamsAmount,
 		NewStreamsTotalSize: newStreamsTotalSize,
 	}
-	for i := 0; i < PulsesIntervalsAmount; i++ {
+	var i int64
+	for i = 0; i < PulsesIntervalsAmount; i++ {
 		if ps.PulseIntervals[i] == nil {
 			ps.PulseIntervals[i] = prevPulse
+			prevPulse = &PulseStats{
+				NewStreamsAmount:    0,
+				NewStreamsTotalSize: 0,
+			}
+			i++
 			break
 		}
 
@@ -39,6 +45,6 @@ func (ps *PulsesStats) AppendNewPulse(newStreamsAmount, newStreamsTotalSize int6
 
 	ps.TotalAmount += newStreamsAmount - prevPulse.NewStreamsAmount
 	ps.TotalSize += newStreamsTotalSize - prevPulse.NewStreamsTotalSize
-	ps.PulseAvgAmount = ps.TotalAmount / PulsesIntervalsAmount
-	ps.PulseAvgSize = ps.TotalSize / PulsesIntervalsAmount
+	ps.PulseAvgAmount = ps.TotalAmount / i
+	ps.PulseAvgSize = ps.TotalSize / i
 }
