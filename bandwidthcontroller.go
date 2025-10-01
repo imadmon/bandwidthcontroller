@@ -68,7 +68,6 @@ func (bc *BandwidthController) AppendStreamReadCloser(r io.ReadCloser, streamSiz
 	}
 
 	bc.mu.Lock()
-	defer bc.mu.Unlock()
 
 	// no point in allocating bandwidth larger then the bandwidth required for completing the stream in one pulse
 	streamBandwidth := getStreamMaxBandwidth(streamSize)
@@ -97,12 +96,12 @@ func (bc *BandwidthController) AppendStreamReadCloser(r io.ReadCloser, streamSiz
 		go bc.startScheduler()
 	}
 
+	bc.mu.Unlock()
 	return stream, nil
 }
 
 func (bc *BandwidthController) removeStream(group GroupType, streamID int64) {
 	bc.mu.Lock()
-	defer bc.mu.Unlock()
 
 	bc.streamsInSystems--
 	bc.freeBandwidth += bc.streams[group][streamID].GetRateLimit()
@@ -112,6 +111,8 @@ func (bc *BandwidthController) removeStream(group GroupType, streamID int64) {
 	if bc.streamsInSystems == 0 {
 		go bc.stopScheduler()
 	}
+
+	bc.mu.Unlock()
 }
 
 func (bc *BandwidthController) GetTotalStreamsInSystem() int64 {
