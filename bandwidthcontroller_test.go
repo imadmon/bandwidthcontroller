@@ -253,21 +253,21 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 			name:  "no overrides uses defaults",
 			input: ControllerConfig{},
 			expected: ControllerConfig{
-				BandwidthUpdaterInterval:        defaults.BandwidthUpdaterInterval,
+				SchedulerInterval:               defaults.SchedulerInterval,
 				MinGroupBandwidthPercentShare:   defaults.MinGroupBandwidthPercentShare,
 				MinStreamBandwidthInBytesPerSec: defaults.MinStreamBandwidthInBytesPerSec,
 			},
 		},
 		{
-			name: "override only BandwidthUpdaterInterval",
+			name: "override only SchedulerInterval",
 			input: func() ControllerConfig {
 				interval := 500 * time.Millisecond
-				return ControllerConfig{BandwidthUpdaterInterval: &interval}
+				return ControllerConfig{SchedulerInterval: &interval}
 			}(),
 			expected: func() ControllerConfig {
 				interval := 500 * time.Millisecond
 				return ControllerConfig{
-					BandwidthUpdaterInterval:        &interval,
+					SchedulerInterval:               &interval,
 					MinGroupBandwidthPercentShare:   defaults.MinGroupBandwidthPercentShare,
 					MinStreamBandwidthInBytesPerSec: defaults.MinStreamBandwidthInBytesPerSec,
 				}
@@ -284,7 +284,7 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 				},
 			},
 			expected: ControllerConfig{
-				BandwidthUpdaterInterval:        defaults.BandwidthUpdaterInterval,
+				SchedulerInterval:               defaults.SchedulerInterval,
 				MinStreamBandwidthInBytesPerSec: defaults.MinStreamBandwidthInBytesPerSec,
 				MinGroupBandwidthPercentShare: map[GroupType]float64{
 					KB: 0.10,
@@ -305,7 +305,7 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 				},
 			},
 			expected: ControllerConfig{
-				BandwidthUpdaterInterval:      defaults.BandwidthUpdaterInterval,
+				SchedulerInterval:             defaults.SchedulerInterval,
 				MinGroupBandwidthPercentShare: defaults.MinGroupBandwidthPercentShare,
 				MinStreamBandwidthInBytesPerSec: map[GroupType]int64{
 					KB: 10,
@@ -316,11 +316,11 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "override both BandwidthUpdaterInterval and MinStreamBandwidthInBytesPerSec",
+			name: "override both SchedulerInterval and MinStreamBandwidthInBytesPerSec",
 			input: func() ControllerConfig {
 				interval := 1 * time.Second
 				return ControllerConfig{
-					BandwidthUpdaterInterval: &interval,
+					SchedulerInterval: &interval,
 					MinStreamBandwidthInBytesPerSec: map[GroupType]int64{
 						KB: 10,
 						MB: 20,
@@ -332,7 +332,7 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 			expected: func() ControllerConfig {
 				interval := 1 * time.Second
 				return ControllerConfig{
-					BandwidthUpdaterInterval:      &interval,
+					SchedulerInterval:             &interval,
 					MinGroupBandwidthPercentShare: defaults.MinGroupBandwidthPercentShare,
 					MinStreamBandwidthInBytesPerSec: map[GroupType]int64{
 						KB: 10,
@@ -360,7 +360,7 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 				},
 			},
 			expected: ControllerConfig{
-				BandwidthUpdaterInterval: defaults.BandwidthUpdaterInterval,
+				SchedulerInterval: defaults.SchedulerInterval,
 				MinStreamBandwidthInBytesPerSec: map[GroupType]int64{
 					KB: 10,
 					MB: 20,
@@ -652,7 +652,7 @@ func validateBandwidth(t *testing.T, name string, bandwidth, expectedBandwidth i
 }
 
 func waitUntilLimitsAreUpdated() {
-	time.Sleep(*defaultConfig().BandwidthUpdaterInterval + (2 * time.Millisecond))
+	time.Sleep(*defaultConfig().SchedulerInterval + (2 * time.Millisecond))
 }
 
 func emptyBandwidthController(bc *BandwidthController) {

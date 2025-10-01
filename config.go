@@ -3,7 +3,7 @@ package bandwidthcontroller
 import "time"
 
 type ControllerConfig struct {
-	BandwidthUpdaterInterval        *time.Duration
+	SchedulerInterval               *time.Duration
 	MinGroupBandwidthPercentShare   map[GroupType]float64 // values in [0.01, 1.00]
 	MinStreamBandwidthInBytesPerSec map[GroupType]int64
 }
@@ -11,7 +11,7 @@ type ControllerConfig struct {
 func defaultConfig() ControllerConfig {
 	bandwidthUpdaterInterval := 200 * time.Millisecond
 	return ControllerConfig{
-		BandwidthUpdaterInterval: &bandwidthUpdaterInterval,
+		SchedulerInterval: &bandwidthUpdaterInterval,
 		MinGroupBandwidthPercentShare: map[GroupType]float64{
 			KB: 0.10,
 			MB: 0.10,

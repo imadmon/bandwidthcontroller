@@ -16,7 +16,7 @@ type BandwidthController struct {
 	mu               sync.Mutex
 	streamCounter    int64
 	streamsInSystems int64
-	updaterStopC     chan struct{}
+	schedulerStopC   chan struct{}
 	ctx              context.Context
 }
 
@@ -38,8 +38,8 @@ func NewBandwidthController(bandwidth int64, opts ...Option) *BandwidthControlle
 			GB: &BandwidthStats{PulseIntervalsStats: NewPulsesStats()},
 			TB: &BandwidthStats{PulseIntervalsStats: NewPulsesStats()},
 		},
-		updaterStopC: make(chan struct{}),
-		ctx:          context.Background(),
+		schedulerStopC: make(chan struct{}),
+		ctx:            context.Background(),
 	}
 
 	for _, opt := range opts {
@@ -94,7 +94,7 @@ func (bc *BandwidthController) AppendStreamReadCloser(r io.ReadCloser, streamSiz
 
 	// first stream -> start updater
 	if bc.streamsInSystems == 1 {
-		go bc.startLimitUpdater()
+		go bc.startScheduler()
 	}
 
 	return stream, nil
@@ -110,7 +110,7 @@ func (bc *BandwidthController) removeStream(group GroupType, streamID int64) {
 
 	// no more streams -> stop updater
 	if bc.streamsInSystems == 0 {
-		go bc.stopLimitUpdater()
+		go bc.stopScheduler()
 	}
 }
 
@@ -139,11 +139,11 @@ func (bc *BandwidthController) UpdateBandwidth(bandwidth int64) error {
 	return nil
 }
 
-func (bc *BandwidthController) startLimitUpdater() {
-	ticker := time.NewTicker(*bc.cfg.BandwidthUpdaterInterval)
+func (bc *BandwidthController) startScheduler() {
+	ticker := time.NewTicker(*bc.cfg.SchedulerInterval)
 	for {
 		select {
-		case <-bc.updaterStopC:
+		case <-bc.schedulerStopC:
 			ticker.Stop()
 			bc.updateLimits()
 			bc.updateStatistics()
@@ -155,8 +155,8 @@ func (bc *BandwidthController) startLimitUpdater() {
 	}
 }
 
-func (bc *BandwidthController) stopLimitUpdater() {
-	bc.updaterStopC <- struct{}{}
+func (bc *BandwidthController) stopScheduler() {
+	bc.schedulerStopC <- struct{}{}
 }
 
 func (bc *BandwidthController) updateLimits() {

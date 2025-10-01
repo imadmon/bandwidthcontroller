@@ -15,8 +15,8 @@ func WithConfig(cfg ControllerConfig) Option {
 	return func(bc *BandwidthController) {
 		bc.cfg = defaultConfig()
 
-		if cfg.BandwidthUpdaterInterval != nil {
-			bc.cfg.BandwidthUpdaterInterval = cfg.BandwidthUpdaterInterval
+		if cfg.SchedulerInterval != nil {
+			bc.cfg.SchedulerInterval = cfg.SchedulerInterval
 		}
 
 		if cfg.MinGroupBandwidthPercentShare != nil {
