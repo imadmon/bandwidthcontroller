@@ -472,8 +472,7 @@ func TestBandwidthControllerAdaptiveBandwidth(t *testing.T) {
 	const timeToChangeBandwidthInSeconds = 2
 	const timeToFinishInSeconds = 2
 	const expectedTotalStreamAmount = streamAmountPerSecond * (timeToChangeBandwidthInSeconds + timeToFinishInSeconds)
-	const expectedTime = (streamSize*streamAmountPerSecond*timeToChangeBandwidthInSeconds/bandwidth +
-		streamSize*streamAmountPerSecond*timeToFinishInSeconds/newBandwidth)
+	const expectedTime = (streamSize * expectedTotalStreamAmount) / ((bandwidth + newBandwidth) / 2)
 	const bufferTime = 100 * time.Millisecond
 
 	bc := NewBandwidthController(bandwidth)
