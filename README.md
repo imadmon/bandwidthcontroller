@@ -2,16 +2,16 @@
 
 `bandwidthcontroller` is a high-performance Go library for **dynamic bandwidth management** across multiple concurrent `io.Reader` streams.
 
-It enforces a **global bandwidth cap (bytes/sec)** and automatically redistributes available bandwidth among active readers in real time, leveraging the capabilities of [`imadmon/limitedreader`](https://github.com/imadmon/limitedreader) for adaptive rate limiting.
+It enforces a **global bandwidth cap (bytes/second)** and automatically redistributes available bandwidth among active readers in real time, leveraging the capabilities of [`imadmon/limitedreader`](https://github.com/imadmon/limitedreader) for adaptive rate limiting.
 
 This ensures fair throughput, prevents starvation, and simplifies handling of many concurrent, variably sized streams efficiently without manually managing per-stream limits.
 
-> Check out the [bandwidth control mastery article here](https://github.com/imadmon/bandwidthcontroller) - explainig everything about how this library algorithms.
+> Check out the [bandwidth control mastery article](https://github.com/imadmon/bandwidthcontroller) - explaining everything about how this library’s algorithms work.
 
 </br>
 
 ## How it works
-You initialize the controller with a total bandwidth cap (bytes/sec). Every time you add a stream, it returns a rate limited reader that adapts in real-time.</br>
+You initialize the controller with a total bandwidth cap (bytes/second). Every time you add a stream, it returns a rate limited reader that adapts in real-time.</br>
 Under the hood, the controller automatically adjusts the rate limits as streams are added, read from or closed, redistributing available bandwidth as needed.
 
 </br>
@@ -39,7 +39,7 @@ import (
 )
 
 func main() {
-	// Initialize controller with target total bandwidth in bytes per second
+	// Initialize controller with target total bandwidth in bytes/second
 	var bandwidth int64 = 100_000 // ~100KB/sec
 	bc := bandwidthcontroller.NewBandwidthController(bandwidth)
 
@@ -73,7 +73,7 @@ func main() {
 
 ## Features
 
-- **Global bandwidth cap**: Enforce a single throughput limit (bytes/sec) across all streams.
+- **Global bandwidth cap**: Enforce a single throughput limit (bytes/second) across all streams.
 - **Dynamic allocation**: New readers can join at any time and receive a bandwidth-aware io.ReadCloser whose limits are adjusted on-the-fly.
 - **Bandwidth groups by size**: Streams are categorized into KB, MB, GB, and TB groups to ensure fairness and prevent starvation.
 - **Fairness + efficiency**: Each group and stream has a minimum guaranteed bandwidth, while maximizing use of limitedreader and returning unused capacity to the global pool.
