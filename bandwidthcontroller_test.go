@@ -20,9 +20,10 @@ func TestBandwidthControllerMultipleSameSizeStreams(t *testing.T) {
 	bc := NewBandwidthController(bandwidth)
 	for i := 0; i < streamsAmount; i++ {
 		streams[i], _ = bc.AppendStreamReader(bytes.NewReader(make([]byte, streamSize)), streamSize)
+		keepStreamActive(streams[i])
 		waitUntilLimitsAreUpdated()
 		for j := 0; j <= i; j++ {
-			validateBandwidth(t, fmt.Sprintf("lap: #%d stream #%d", i, j), streams[j].GetRateLimit(), bandwidth/int64(i+1))
+			validateBandwidth(t, fmt.Sprintf("lap: #%d stream #%d", i, j), streams[j].RateLimit(), bandwidth/int64(i+1))
 		}
 	}
 
@@ -60,16 +61,16 @@ func TestBandwidthControllerMaxStreamBandwidth(t *testing.T) {
 	bandwidthContorller := NewBandwidthController(bandwidth)
 
 	smallStream1, _ := bandwidthContorller.AppendStreamReader(bytes.NewReader(make([]byte, smallStreamSize)), smallStreamSize)
-	validateBandwidth(t, "first add: smallStream1", smallStream1.GetRateLimit(), smallStreamMaxBandwidth)
+	validateBandwidth(t, "first add: smallStream1", smallStream1.RateLimit(), smallStreamMaxBandwidth)
 
 	smallStream2, _ := bandwidthContorller.AppendStreamReader(bytes.NewReader(make([]byte, smallStreamSize)), smallStreamSize)
-	validateBandwidth(t, "second add: smallStream1", smallStream1.GetRateLimit(), smallStreamMaxBandwidth)
-	validateBandwidth(t, "second add: smallStream2", smallStream2.GetRateLimit(), smallStreamMaxBandwidth)
+	validateBandwidth(t, "second add: smallStream1", smallStream1.RateLimit(), smallStreamMaxBandwidth)
+	validateBandwidth(t, "second add: smallStream2", smallStream2.RateLimit(), smallStreamMaxBandwidth)
 
 	largeStream1, _ := bandwidthContorller.AppendStreamReader(bytes.NewReader(make([]byte, largeStreamSize)), largeStreamSize)
-	validateBandwidth(t, "third add: smallStream1", smallStream1.GetRateLimit(), smallStreamMaxBandwidth)
-	validateBandwidth(t, "third add: smallStream2", smallStream2.GetRateLimit(), smallStreamMaxBandwidth)
-	validateBandwidth(t, "third add: largeStream1", largeStream1.GetRateLimit(), largeStreamMaxBandwidth)
+	validateBandwidth(t, "third add: smallStream1", smallStream1.RateLimit(), smallStreamMaxBandwidth)
+	validateBandwidth(t, "third add: smallStream2", smallStream2.RateLimit(), smallStreamMaxBandwidth)
+	validateBandwidth(t, "third add: largeStream1", largeStream1.RateLimit(), largeStreamMaxBandwidth)
 }
 
 func TestBandwidthControllerFreeBandwidthAllocation(t *testing.T) {
@@ -89,11 +90,14 @@ func TestBandwidthControllerFreeBandwidthAllocation(t *testing.T) {
 	stream1, _ := bandwidthContorller.AppendStreamReader(bytes.NewReader(make([]byte, streamSize)), streamSize)
 	stream2, _ := bandwidthContorller.AppendStreamReader(bytes.NewReader(make([]byte, streamSize)), streamSize)
 	stream3, _ := bandwidthContorller.AppendStreamReader(bytes.NewReader(make([]byte, streamSize)), streamSize)
+	keepStreamActive(stream1)
+	keepStreamActive(stream2)
+	keepStreamActive(stream3)
 
 	waitUntilLimitsAreUpdated()
-	bandwidthAmounts[stream1.GetRateLimit()]++
-	bandwidthAmounts[stream2.GetRateLimit()]++
-	bandwidthAmounts[stream3.GetRateLimit()]++
+	bandwidthAmounts[stream1.RateLimit()]++
+	bandwidthAmounts[stream2.RateLimit()]++
+	bandwidthAmounts[stream3.RateLimit()]++
 
 	for b, amount := range expectedBandwidthAmounts {
 		if bandwidthAmounts[b] != amount {
@@ -115,18 +119,21 @@ func TestBandwidthControllerAppendStreamsBandwidthAllocation(t *testing.T) {
 	bc := NewBandwidthController(bandwidth)
 
 	assertExpectedResult := func(testName string) {
+		keepStreamActive(smallStream1)
+		keepStreamActive(smallStream2)
+		keepStreamActive(largeStream1)
 		waitUntilLimitsAreUpdated()
-		validateBandwidth(t, testName+": smallStream1", smallStream1.GetRateLimit(), expectedSmallStreamBandwidth)
-		validateBandwidth(t, testName+": smallStream2", smallStream2.GetRateLimit(), expectedSmallStreamBandwidth)
-		validateBandwidth(t, testName+": largeStream1", largeStream1.GetRateLimit(), expectedLargeStreamBandwidth)
-		validateBandwidth(t, testName+": KB group allocated bandwidth", bc.stats[KB].ReservedBandwidth, int64(float64(bc.bandwidth)*bc.cfg.MinGroupBandwidthPercentShare[KB]))
-		validateBandwidth(t, testName+": KB group used bandwidth", bc.stats[KB].AllocatedBandwidth, expectedSmallStreamBandwidth*2)
-		validateBandwidth(t, testName+": MB group allocated bandwidth", bc.stats[MB].ReservedBandwidth, bc.bandwidth-expectedSmallStreamBandwidth*2)
-		validateBandwidth(t, testName+": MB group used bandwidth", bc.stats[MB].AllocatedBandwidth, getStreamBandwidthWithoutDeviation(bc.bandwidth-expectedSmallStreamBandwidth*2-bc.freeBandwidth))
-		validateBandwidth(t, testName+": GB group allocated bandwidth", bc.stats[GB].ReservedBandwidth, 0)
-		validateBandwidth(t, testName+": GB group used bandwidth", bc.stats[GB].AllocatedBandwidth, 0)
-		validateBandwidth(t, testName+": TB group allocated bandwidth", bc.stats[TB].ReservedBandwidth, 0)
-		validateBandwidth(t, testName+": TB group used bandwidth", bc.stats[TB].AllocatedBandwidth, 0)
+		validateBandwidth(t, testName+": smallStream1", smallStream1.RateLimit(), expectedSmallStreamBandwidth)
+		validateBandwidth(t, testName+": smallStream2", smallStream2.RateLimit(), expectedSmallStreamBandwidth)
+		validateBandwidth(t, testName+": largeStream1", largeStream1.RateLimit(), expectedLargeStreamBandwidth)
+		validateBandwidth(t, testName+": KB group allocated bandwidth", bc.stats.GroupsStats[KB].ReservedBandwidth, int64(float64(bc.bandwidth)*bc.cfg.MinGroupBandwidthPercentShare[KB]))
+		validateBandwidth(t, testName+": KB group used bandwidth", bc.stats.GroupsStats[KB].AllocatedBandwidth, expectedSmallStreamBandwidth*2)
+		validateBandwidth(t, testName+": MB group allocated bandwidth", bc.stats.GroupsStats[MB].ReservedBandwidth, bc.bandwidth-expectedSmallStreamBandwidth*2)
+		validateBandwidth(t, testName+": MB group used bandwidth", bc.stats.GroupsStats[MB].AllocatedBandwidth, getStreamBandwidthWithoutDeviation(bc.bandwidth-expectedSmallStreamBandwidth*2-bc.freeBandwidth))
+		validateBandwidth(t, testName+": GB group allocated bandwidth", bc.stats.GroupsStats[GB].ReservedBandwidth, 0)
+		validateBandwidth(t, testName+": GB group used bandwidth", bc.stats.GroupsStats[GB].AllocatedBandwidth, 0)
+		validateBandwidth(t, testName+": TB group allocated bandwidth", bc.stats.GroupsStats[TB].ReservedBandwidth, 0)
+		validateBandwidth(t, testName+": TB group used bandwidth", bc.stats.GroupsStats[TB].AllocatedBandwidth, 0)
 	}
 
 	largeStream1, _ = bc.AppendStreamReader(bytes.NewReader(make([]byte, largeStreamSize)), largeStreamSize)
@@ -157,6 +164,9 @@ func TestBandwidthControllerStreamsCloseBandwidthAllocation(t *testing.T) {
 	smallStream1, _ := bc.AppendStreamReader(bytes.NewReader(make([]byte, smallStreamSize)), smallStreamSize)
 	smallStream2, _ := bc.AppendStreamReader(bytes.NewReader(make([]byte, smallStreamSize)), smallStreamSize)
 	largeStream1, _ := bc.AppendStreamReader(bytes.NewReader(make([]byte, largeStreamSize)), largeStreamSize)
+	keepStreamActive(smallStream1)
+	keepStreamActive(smallStream2)
+	keepStreamActive(largeStream1)
 
 	err := smallStream1.Close()
 	if err != nil {
@@ -165,16 +175,16 @@ func TestBandwidthControllerStreamsCloseBandwidthAllocation(t *testing.T) {
 
 	waitUntilLimitsAreUpdated()
 	testName := "first close"
-	validateBandwidth(t, testName+": smallStream2", smallStream2.GetRateLimit(), expectedSmallStreamBandwidth)
-	validateBandwidth(t, testName+": largeStream1", largeStream1.GetRateLimit(), getStreamBandwidthWithoutDeviation(bandwidth-expectedSmallStreamBandwidth))
-	validateBandwidth(t, testName+": KB group allocated bandwidth", bc.stats[KB].ReservedBandwidth, int64(float64(bc.bandwidth)*bc.cfg.MinGroupBandwidthPercentShare[KB]))
-	validateBandwidth(t, testName+": KB group used bandwidth", bc.stats[KB].AllocatedBandwidth, expectedSmallStreamBandwidth)
-	validateBandwidth(t, testName+": MB group allocated bandwidth", bc.stats[MB].ReservedBandwidth, bc.bandwidth-expectedSmallStreamBandwidth)
-	validateBandwidth(t, testName+": MB group used bandwidth", bc.stats[MB].AllocatedBandwidth, getStreamBandwidthWithoutDeviation(bc.bandwidth-expectedSmallStreamBandwidth))
-	validateBandwidth(t, testName+": GB group allocated bandwidth", bc.stats[GB].ReservedBandwidth, 0)
-	validateBandwidth(t, testName+": GB group used bandwidth", bc.stats[GB].AllocatedBandwidth, 0)
-	validateBandwidth(t, testName+": TB group allocated bandwidth", bc.stats[TB].ReservedBandwidth, 0)
-	validateBandwidth(t, testName+": TB group used bandwidth", bc.stats[TB].AllocatedBandwidth, 0)
+	validateBandwidth(t, testName+": smallStream2", smallStream2.RateLimit(), expectedSmallStreamBandwidth)
+	validateBandwidth(t, testName+": largeStream1", largeStream1.RateLimit(), getStreamBandwidthWithoutDeviation(bandwidth-expectedSmallStreamBandwidth))
+	validateBandwidth(t, testName+": KB group allocated bandwidth", bc.stats.GroupsStats[KB].ReservedBandwidth, int64(float64(bc.bandwidth)*bc.cfg.MinGroupBandwidthPercentShare[KB]))
+	validateBandwidth(t, testName+": KB group used bandwidth", bc.stats.GroupsStats[KB].AllocatedBandwidth, expectedSmallStreamBandwidth)
+	validateBandwidth(t, testName+": MB group allocated bandwidth", bc.stats.GroupsStats[MB].ReservedBandwidth, bc.bandwidth-expectedSmallStreamBandwidth)
+	validateBandwidth(t, testName+": MB group used bandwidth", bc.stats.GroupsStats[MB].AllocatedBandwidth, getStreamBandwidthWithoutDeviation(bc.bandwidth-expectedSmallStreamBandwidth))
+	validateBandwidth(t, testName+": GB group allocated bandwidth", bc.stats.GroupsStats[GB].ReservedBandwidth, 0)
+	validateBandwidth(t, testName+": GB group used bandwidth", bc.stats.GroupsStats[GB].AllocatedBandwidth, 0)
+	validateBandwidth(t, testName+": TB group allocated bandwidth", bc.stats.GroupsStats[TB].ReservedBandwidth, 0)
+	validateBandwidth(t, testName+": TB group used bandwidth", bc.stats.GroupsStats[TB].AllocatedBandwidth, 0)
 
 	err = smallStream2.Close()
 	if err != nil {
@@ -183,15 +193,15 @@ func TestBandwidthControllerStreamsCloseBandwidthAllocation(t *testing.T) {
 
 	waitUntilLimitsAreUpdated()
 	testName = "second close"
-	validateBandwidth(t, testName+": largeStream1", largeStream1.GetRateLimit(), getStreamBandwidthWithoutDeviation(bandwidth))
-	validateBandwidth(t, testName+": KB group allocated bandwidth", bc.stats[KB].ReservedBandwidth, 0)
-	validateBandwidth(t, testName+": KB group used bandwidth", bc.stats[KB].AllocatedBandwidth, 0)
-	validateBandwidth(t, testName+": MB group allocated bandwidth", bc.stats[MB].ReservedBandwidth, bc.bandwidth)
-	validateBandwidth(t, testName+": MB group used bandwidth", bc.stats[MB].AllocatedBandwidth, getStreamBandwidthWithoutDeviation(bc.bandwidth))
-	validateBandwidth(t, testName+": GB group allocated bandwidth", bc.stats[GB].ReservedBandwidth, 0)
-	validateBandwidth(t, testName+": GB group used bandwidth", bc.stats[GB].AllocatedBandwidth, 0)
-	validateBandwidth(t, testName+": TB group allocated bandwidth", bc.stats[TB].ReservedBandwidth, 0)
-	validateBandwidth(t, testName+": TB group used bandwidth", bc.stats[TB].AllocatedBandwidth, 0)
+	validateBandwidth(t, testName+": largeStream1", largeStream1.RateLimit(), getStreamBandwidthWithoutDeviation(bandwidth))
+	validateBandwidth(t, testName+": KB group allocated bandwidth", bc.stats.GroupsStats[KB].ReservedBandwidth, 0)
+	validateBandwidth(t, testName+": KB group used bandwidth", bc.stats.GroupsStats[KB].AllocatedBandwidth, 0)
+	validateBandwidth(t, testName+": MB group allocated bandwidth", bc.stats.GroupsStats[MB].ReservedBandwidth, bc.bandwidth)
+	validateBandwidth(t, testName+": MB group used bandwidth", bc.stats.GroupsStats[MB].AllocatedBandwidth, getStreamBandwidthWithoutDeviation(bc.bandwidth))
+	validateBandwidth(t, testName+": GB group allocated bandwidth", bc.stats.GroupsStats[GB].ReservedBandwidth, 0)
+	validateBandwidth(t, testName+": GB group used bandwidth", bc.stats.GroupsStats[GB].AllocatedBandwidth, 0)
+	validateBandwidth(t, testName+": TB group allocated bandwidth", bc.stats.GroupsStats[TB].ReservedBandwidth, 0)
+	validateBandwidth(t, testName+": TB group used bandwidth", bc.stats.GroupsStats[TB].AllocatedBandwidth, 0)
 
 	err = largeStream1.Close()
 	if err != nil {
@@ -254,6 +264,7 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 			input: ControllerConfig{},
 			expected: ControllerConfig{
 				SchedulerInterval:               defaults.SchedulerInterval,
+				StreamIdleTimeout:               defaults.StreamIdleTimeout,
 				MinGroupBandwidthPercentShare:   defaults.MinGroupBandwidthPercentShare,
 				MinStreamBandwidthInBytesPerSec: defaults.MinStreamBandwidthInBytesPerSec,
 			},
@@ -268,6 +279,23 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 				interval := 500 * time.Millisecond
 				return ControllerConfig{
 					SchedulerInterval:               &interval,
+					StreamIdleTimeout:               defaults.StreamIdleTimeout,
+					MinGroupBandwidthPercentShare:   defaults.MinGroupBandwidthPercentShare,
+					MinStreamBandwidthInBytesPerSec: defaults.MinStreamBandwidthInBytesPerSec,
+				}
+			}(),
+		},
+		{
+			name: "override only StreamIdleTimeout",
+			input: func() ControllerConfig {
+				streamTimeout := 500 * time.Millisecond
+				return ControllerConfig{StreamIdleTimeout: &streamTimeout}
+			}(),
+			expected: func() ControllerConfig {
+				streamTimeout := 500 * time.Millisecond
+				return ControllerConfig{
+					SchedulerInterval:               defaults.SchedulerInterval,
+					StreamIdleTimeout:               &streamTimeout,
 					MinGroupBandwidthPercentShare:   defaults.MinGroupBandwidthPercentShare,
 					MinStreamBandwidthInBytesPerSec: defaults.MinStreamBandwidthInBytesPerSec,
 				}
@@ -285,6 +313,7 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 			},
 			expected: ControllerConfig{
 				SchedulerInterval:               defaults.SchedulerInterval,
+				StreamIdleTimeout:               defaults.StreamIdleTimeout,
 				MinStreamBandwidthInBytesPerSec: defaults.MinStreamBandwidthInBytesPerSec,
 				MinGroupBandwidthPercentShare: map[GroupType]float64{
 					KB: 0.10,
@@ -306,6 +335,7 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 			},
 			expected: ControllerConfig{
 				SchedulerInterval:             defaults.SchedulerInterval,
+				StreamIdleTimeout:             defaults.StreamIdleTimeout,
 				MinGroupBandwidthPercentShare: defaults.MinGroupBandwidthPercentShare,
 				MinStreamBandwidthInBytesPerSec: map[GroupType]int64{
 					KB: 10,
@@ -333,6 +363,7 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 				interval := 1 * time.Second
 				return ControllerConfig{
 					SchedulerInterval:             &interval,
+					StreamIdleTimeout:             defaults.StreamIdleTimeout,
 					MinGroupBandwidthPercentShare: defaults.MinGroupBandwidthPercentShare,
 					MinStreamBandwidthInBytesPerSec: map[GroupType]int64{
 						KB: 10,
@@ -361,6 +392,7 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 			},
 			expected: ControllerConfig{
 				SchedulerInterval: defaults.SchedulerInterval,
+				StreamIdleTimeout: defaults.StreamIdleTimeout,
 				MinStreamBandwidthInBytesPerSec: map[GroupType]int64{
 					KB: 10,
 					MB: 20,
@@ -388,6 +420,245 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 	}
 }
 
+func TestBandwidthControllerCalculateAndSortGroupsActiveStreamsWeights(t *testing.T) {
+	cases := []struct {
+		name                               string
+		expectedOverallGroupsRemainingSize int64
+		expectedGroupsAmounts              map[GroupType]int
+		expectedGroupsTotalSizes           map[GroupType]int64
+	}{
+		{
+			name:                               "only KB streams",
+			expectedOverallGroupsRemainingSize: 100,
+			expectedGroupsAmounts: map[GroupType]int{
+				KB: 10,
+				MB: 0,
+				GB: 0,
+				TB: 0,
+			},
+			expectedGroupsTotalSizes: map[GroupType]int64{
+				KB: 100,
+				MB: 0,
+				GB: 0,
+				TB: 0,
+			},
+		},
+		{
+			name:                               "both KB and GB streams",
+			expectedOverallGroupsRemainingSize: 5*int64(GB) + 100,
+			expectedGroupsAmounts: map[GroupType]int{
+				KB: 10,
+				MB: 0,
+				GB: 5,
+				TB: 0,
+			},
+			expectedGroupsTotalSizes: map[GroupType]int64{
+				KB: 100,
+				MB: 0,
+				GB: 5 * int64(GB),
+				TB: 0,
+			},
+		},
+		{
+			name:                               "all group types streams",
+			expectedOverallGroupsRemainingSize: 5*int64(TB) + 5*int64(GB) + 20*int64(MB) + 100,
+			expectedGroupsAmounts: map[GroupType]int{
+				KB: 10,
+				MB: 10,
+				GB: 5,
+				TB: 5,
+			},
+			expectedGroupsTotalSizes: map[GroupType]int64{
+				KB: 100,
+				MB: 20 * int64(MB),
+				GB: 5 * int64(GB),
+				TB: 5 * int64(TB),
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			bc := NewBandwidthController(1024)
+
+			bc.streams = map[GroupType]BandwidthGroup{
+				KB: generateGroupStreams(c.expectedGroupsAmounts[KB], c.expectedGroupsTotalSizes[KB]),
+				MB: generateGroupStreams(c.expectedGroupsAmounts[MB], c.expectedGroupsTotalSizes[MB]),
+				GB: generateGroupStreams(c.expectedGroupsAmounts[GB], c.expectedGroupsTotalSizes[GB]),
+				TB: generateGroupStreams(c.expectedGroupsAmounts[TB], c.expectedGroupsTotalSizes[TB]),
+			}
+
+			insights := bc.calculateAndSortGroupsActiveStreamsWeights()
+
+			if insights.leftGroupsRemainingSize != c.expectedOverallGroupsRemainingSize {
+				t.Fatalf("overallGroupsRemainingSize mismatch\ngot: %d\nexpected: %d", insights.leftGroupsRemainingSize, c.expectedOverallGroupsRemainingSize)
+			}
+
+			sumGroupsTotalRemainingSize := (insights.weights[KB].totalRemainingSize +
+				insights.weights[MB].totalRemainingSize +
+				insights.weights[GB].totalRemainingSize +
+				insights.weights[TB].totalRemainingSize)
+			if sumGroupsTotalRemainingSize != c.expectedOverallGroupsRemainingSize {
+				t.Fatalf("sumGroupsTotalRemainingSize mismatch\ngot: %d\nexpected: %d", sumGroupsTotalRemainingSize, c.expectedOverallGroupsRemainingSize)
+			}
+
+			expectedTotalActiveStreams := int64(c.expectedGroupsAmounts[KB] +
+				c.expectedGroupsAmounts[MB] +
+				c.expectedGroupsAmounts[GB] +
+				c.expectedGroupsAmounts[TB])
+			if insights.totalActiveStreams != expectedTotalActiveStreams {
+				t.Fatalf("totalActiveStreams mismatch\ngot: %d\nexpected: %d", insights.totalActiveStreams, expectedTotalActiveStreams)
+			}
+
+			validateWeightsPerGroup(t, KB, "KB", insights.weights, c.expectedGroupsAmounts, c.expectedGroupsTotalSizes)
+			validateWeightsPerGroup(t, MB, "MB", insights.weights, c.expectedGroupsAmounts, c.expectedGroupsTotalSizes)
+			validateWeightsPerGroup(t, GB, "GB", insights.weights, c.expectedGroupsAmounts, c.expectedGroupsTotalSizes)
+			validateWeightsPerGroup(t, TB, "TB", insights.weights, c.expectedGroupsAmounts, c.expectedGroupsTotalSizes)
+		})
+	}
+}
+
+func generateGroupStreams(streamsAmount int, streamsTotalSize int64) BandwidthGroup {
+	streams := make(BandwidthGroup)
+	for i := 0; i < streamsAmount; i++ {
+		streams[StreamID(i)] = NewStream(NewStreamReadCloser(nil, 0, nil), streamsTotalSize/int64(streamsAmount))
+	}
+
+	return streams
+}
+
+func validateWeightsPerGroup(t *testing.T, group GroupType, groupName string,
+	weights map[GroupType]streamWeights,
+	expectedGroupsAmounts map[GroupType]int,
+	expectedGroupsTotalSizes map[GroupType]int64) {
+	if len(weights[group].weights) != expectedGroupsAmounts[group] {
+		t.Fatalf("groupAmount %s mismatch\ngot: %d\nexpected: %d", groupName, len(weights[group].weights), expectedGroupsAmounts[group])
+	}
+
+	if weights[group].totalRemainingSize != expectedGroupsTotalSizes[group] {
+		t.Fatalf("groupTotalRemainingSize %s mismatch\ngot: %d\nexpected: %d", groupName, weights[group].totalRemainingSize, expectedGroupsTotalSizes[group])
+	}
+}
+
+func TestBandwidthControllerCalculateAndSortActiveStreamsWeights(t *testing.T) {
+	bc := NewBandwidthController(1024)
+	streams := make(BandwidthGroup)
+
+	var expectedTotalWeights float64
+	var expectedTotalRemainingSize int64
+	for i := 5; i > 0; i-- {
+		streams[StreamID(i)] = NewStream(NewStreamReadCloser(nil, 0, nil), int64(i))
+		expectedTotalWeights += 1.0 / float64(i)
+		expectedTotalRemainingSize += int64(i)
+	}
+
+	streamWeights := bc.calculateAndSortActiveStreamsWeights(streams)
+
+	if streamWeights.totalRemainingSize != expectedTotalRemainingSize {
+		t.Fatalf("totalRemainingSize is different then expected totalRemainingSize: %d expected: %d", streamWeights.totalRemainingSize, expectedTotalRemainingSize)
+	}
+
+	if streamWeights.totalWeights != expectedTotalWeights {
+		t.Fatalf("totalWeights is different then expected totalWeights: %f expected: %f", streamWeights.totalWeights, expectedTotalWeights)
+	}
+
+	for i := 0; i < 5; i++ {
+		if streamWeights.weights[i].weight != 1.0/float64(i+1) {
+			t.Fatalf("weights is not sorted current weight: %f expected: %f", streamWeights.weights[i].weight, 1.0/float64(i+1))
+		}
+	}
+}
+
+func TestBandwidthControllerCalculateAndSortActiveStreamsWeightsEmptyStreams(t *testing.T) {
+	bc := NewBandwidthController(1024)
+	streams := make(BandwidthGroup)
+	streamsAmount := 5
+	for i := streamsAmount; i > 0; i-- {
+		streams[StreamID(i)] = NewStream(NewStreamReadCloser(nil, 0, nil), 0)
+	}
+
+	streamWeights := bc.calculateAndSortActiveStreamsWeights(streams)
+
+	if streamWeights.totalRemainingSize != 0 {
+		t.Fatalf("totalRemainingSize is more then 0, totalRemainingSize: %d", streamWeights.totalRemainingSize)
+	}
+
+	if streamWeights.totalWeights != 0 {
+		t.Fatalf("totalWeights is more then 0, totalWeights: %f", streamWeights.totalWeights)
+	}
+
+	if len(streamWeights.weights) != 0 {
+		t.Fatalf("weights length is more then 0, weights length: %d", len(streamWeights.weights))
+	}
+
+	for i := streamsAmount; i > 0; i-- {
+		if streams[StreamID(i)].Active.Load() {
+			t.Fatalf("stream #%d is active when shouldn't", i)
+		}
+	}
+}
+
+func TestBandwidthControllerCalculateAndSortActiveStreamsWeightsInactiveStreams(t *testing.T) {
+	bc := NewBandwidthController(1024)
+	streams := make(BandwidthGroup)
+	streamsAmount := 5
+	for i := streamsAmount; i > 0; i-- {
+		streams[StreamID(i)] = NewStream(NewStreamReadCloser(nil, 0, nil), int64(0))
+		streams[StreamID(i)].Active.Store(false)
+	}
+
+	streamWeights := bc.calculateAndSortActiveStreamsWeights(streams)
+
+	if streamWeights.totalRemainingSize != 0 {
+		t.Fatalf("totalRemainingSize is more then 0, totalRemainingSize: %d", streamWeights.totalRemainingSize)
+	}
+
+	if streamWeights.totalWeights != 0 {
+		t.Fatalf("totalWeights is more then 0, totalWeights: %f", streamWeights.totalWeights)
+	}
+
+	if len(streamWeights.weights) != 0 {
+		t.Fatalf("weights length is more then 0, weights length: %d", len(streamWeights.weights))
+	}
+
+	for i := streamsAmount; i > 0; i-- {
+		if streams[StreamID(i)].Active.Load() {
+			t.Fatalf("stream #%d is active when shouldn't", i)
+		}
+	}
+}
+
+func TestBandwidthControllerCalculateAndSortActiveStreamsWeightsActivationTimeoutStreams(t *testing.T) {
+	bc := NewBandwidthController(1024)
+	streams := make(BandwidthGroup)
+	streamsAmount := 5
+	lastReadEndingTime := time.Now().UnixNano() - defaultConfig().StreamIdleTimeout.Milliseconds() - 1
+	for i := streamsAmount; i > 0; i-- {
+		streams[StreamID(i)] = NewStream(NewStreamReadCloser(nil, 0, nil), int64(0))
+		streams[StreamID(i)].lastReadEndingTime.Store(lastReadEndingTime)
+	}
+
+	streamWeights := bc.calculateAndSortActiveStreamsWeights(streams)
+
+	if streamWeights.totalRemainingSize != 0 {
+		t.Fatalf("totalRemainingSize is more then 0, totalRemainingSize: %d", streamWeights.totalRemainingSize)
+	}
+
+	if streamWeights.totalWeights != 0 {
+		t.Fatalf("totalWeights is more then 0, totalWeights: %f", streamWeights.totalWeights)
+	}
+
+	if len(streamWeights.weights) != 0 {
+		t.Fatalf("weights length is more then 0, weights length: %d", len(streamWeights.weights))
+	}
+
+	for i := streamsAmount; i > 0; i-- {
+		if streams[StreamID(i)].Active.Load() {
+			t.Fatalf("stream #%d is active when shouldn't", i)
+		}
+	}
+}
+
 func TestBandwidthControllerStableThroughput(t *testing.T) {
 	const streamSize = 1 * 1024 // 1 KB
 	const streamAmountPerSecond = 200
@@ -412,8 +683,8 @@ func TestBandwidthControllerStableThroughput(t *testing.T) {
 	expectedTime := totalStreamAmount * streamSize / bandwidth
 	validateEmpty(t, bc)
 
-	if bc.streamCounter != totalStreamAmount {
-		t.Fatalf("stream sent different then expected sent: %d expected: %d", bc.streamCounter, totalStreamAmount)
+	if bc.stats.TotalStreams != totalStreamAmount {
+		t.Fatalf("stream sent different then expected sent: %d expected: %d", bc.stats.TotalStreams, totalStreamAmount)
 	}
 
 	assertReadTimes(t, elapsed, expectedTime, expectedTime+1)
@@ -457,8 +728,8 @@ func TestBandwidthControllerAdaptiveThroughput(t *testing.T) {
 	elapsed := time.Since(start)
 	validateEmpty(t, bc)
 
-	if bc.streamCounter != expectedTotalStreamAmount {
-		t.Fatalf("stream sent different then expected sent: %d expected: %d", bc.streamCounter, expectedTotalStreamAmount)
+	if bc.stats.TotalStreams != expectedTotalStreamAmount {
+		t.Fatalf("stream sent different then expected sent: %d expected: %d", bc.stats.TotalStreams, expectedTotalStreamAmount)
 	}
 
 	assertReadTimes(t, elapsed, expectedTime, expectedTime+1)
@@ -493,8 +764,8 @@ func TestBandwidthControllerAdaptiveBandwidth(t *testing.T) {
 	elapsed := time.Since(start)
 	validateEmpty(t, bc)
 
-	if bc.streamCounter != expectedTotalStreamAmount {
-		t.Fatalf("stream sent different then expected sent: %d expected: %d", bc.streamCounter, expectedTotalStreamAmount)
+	if bc.stats.TotalStreams != expectedTotalStreamAmount {
+		t.Fatalf("stream sent different then expected sent: %d expected: %d", bc.stats.TotalStreams, expectedTotalStreamAmount)
 	}
 
 	assertReadTimes(t, elapsed, expectedTime, expectedTime+1)
@@ -535,8 +806,8 @@ func TestBandwidthControllerBurstRecoveryThroughput(t *testing.T) {
 	elapsed := time.Since(start)
 	validateEmpty(t, bc)
 
-	if bc.streamCounter != expectedTotalStreamAmount {
-		t.Fatalf("stream sent different then expected sent: %d expected: %d", bc.streamCounter, expectedTotalStreamAmount)
+	if bc.stats.TotalStreams != expectedTotalStreamAmount {
+		t.Fatalf("stream sent different then expected sent: %d expected: %d", bc.stats.TotalStreams, expectedTotalStreamAmount)
 	}
 
 	assertReadTimes(t, elapsed, expectedTime, expectedTime+1)
@@ -554,8 +825,7 @@ func TestBandwidthControllerStallingReader(t *testing.T) {
 	stream, _ := bc.AppendStreamReader(bytes.NewReader(make([]byte, streamSize)), streamSize)
 	buffer := make([]byte, 1024)
 
-	waitUntilLimitsAreUpdated()
-	validateBandwidth(t, "stream", stream.GetRateLimit(), getStreamBandwidthWithoutDeviation(bandwidth))
+	validateBandwidth(t, "stream at append", stream.RateLimit(), getStreamBandwidthWithoutDeviation(bandwidth))
 
 	start := time.Now()
 	totalSize := 0
@@ -563,6 +833,7 @@ func TestBandwidthControllerStallingReader(t *testing.T) {
 		if time.Since(start) > timeToStallInSeconds*time.Second &&
 			time.Since(start) < (timeToStallInSeconds+timeOfStallInSeconds)*time.Second {
 			time.Sleep(timeOfStallInSeconds * time.Second)
+			validateBandwidth(t, "stream after deactivated", stream.RateLimit(), 0)
 			continue
 		}
 
@@ -654,10 +925,14 @@ func waitUntilLimitsAreUpdated() {
 	time.Sleep(*defaultConfig().SchedulerInterval + (2 * time.Millisecond))
 }
 
+func keepStreamActive(stream *Stream) {
+	stream.Reading.Store(true)
+}
+
 func emptyBandwidthController(bc *BandwidthController) {
-	bc.streamsInSystems = 0
+	bc.stats.OpenStreams = 0
 	for g, _ := range bc.streams {
-		bc.streams[g] = make(map[int64]*Stream)
+		bc.streams[g] = make(map[StreamID]*Stream)
 	}
 }
 

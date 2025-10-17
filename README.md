@@ -1,7 +1,7 @@
 # Bandwidth Controller
 
 **Global adaptive bandwidth control for concurrent I/O streams in Go.**
-`bandwidthcontroller` automatically enforces a global bandwidth cap (bytes/sec) and redistributes available bandwidth among active readers in real time - leveraging [`imadmon/limitedreader`](https://github.com/imadmon/limitedreader) for precise, adaptive per-stream pacing.
+`bandwidthcontroller` automatically enforces a global bandwidth cap (bytes/sec) and redistributes available bandwidth among active readers in real-time - leveraging [`imadmon/limitedreader`](https://github.com/imadmon/limitedreader) for precise, adaptive per-stream pacing.
 
 </br>
 
@@ -17,12 +17,12 @@ It coordinates multiple `io.ReadCloser`s under one controller, ensuring the tota
 | **Dynamic Allocation**       | New streams can join at any time and receive a bandwidth-aware `io.ReadCloser` whose limits are adjusted on-the-fly.      |
 | **Groups (KB / MB / GB / TB)**       | Streams are categorized by their size into **Bandwidth Groups**. These use binary multiples (1024 bytes).      |
 | **Low Overhead**                     | Centralized lightweight scheduling minimizes per-read locking and CPU usage.                                                                 |
-| **Scheduler Pulse**                  | Every fixed interval (default = **200 ms**), the controller redistributes bandwidth between active streams.         |
+| **Scheduler Pulse**                  | Every fixed interval (default = **200 ms**), the controller redistributes bandwidth between **active** streams.         |
 | **Fairness & Starvation Prevention** | Each group and stream has a guaranteed minimum bandwidth share, unused capacity is automatically reallocated to active streams.  |
 | **Allocation Efficiency** | Calculates the maximum efficient rate limit that can be applied by `limitedreader`, preventing unnecessary bandwidth allocation.  |
-| **Adaptive Redistribution**          | When streams start, finish, or stall, allocations instantly rebalance.                                 |
+| **Adaptive Redistribution**          | When streams start, finish, or idle, allocations instantly rebalance.                                 |
 | **Thread-Safe**                       | All public methods are thread-safe. |
-| **Statistics**                       | The controller provides per-group usage data - including bandwidth allocations, throughput, active counts - via `GetStatistics()`. |
+| **Statistics**                       | The controller provides per-group usage data - including bandwidth allocations, throughput, active counts - via `Stats()`. |
 | **Context Support**                  | Supports `context.Context` for graceful shutdown and cancellation.                                                               |
 
 
@@ -95,17 +95,18 @@ That’s it! One controller, one global limit, automatically balanced across all
 ## How It Works
 
 You initialize the controller with a **total bandwidth cap** (bytes/second).
-Each time you add a stream, it returns a **bandwidth-aware reader** that adapts in real time as data flows.
+Each time you add a stream, it returns a **bandwidth-aware reader** that adapts in real-time as data flows.
 
 #### Under the Hood:
 1. The controller classifies new streams into **bandwidth groups**.
 2. The controller can instantly allocate from the free-bandwidth pool at stream appending if any is available.
 3. The controller tracks stream activation.
-4. Every scheduler pulse (default **200 ms**), it recalculates fair bandwidth shares per group for **active** streams.
-5. Each group and stream has a configured guaranteed minimum bandwidth share, which exist to **prevent starvation**, ensuring fair allocation.
-6. Calculates the maximum efficient rate limit that can be applied by `limitedreader`, and returning unnecessary bandwidth to the free-bandwidth pool.
-7. Bandwidth allocations are applied to each reader via [`imadmon/limitedreader`](https://github.com/imadmon/limitedreader).
-8. When streams close or idle, their unused bandwidth is redistributed to others instantly.
+4. Every scheduler pulse (default **200 ms**), it recalculates fair bandwidth shares per group for active streams.
+5. Redistribute bandwidth among **active** streams, reclaiming unused capacity from idle ones.
+6. Ensure fair allocation by applying group and stream minimum bandwidth share to **prevent starvation**.
+7. Calculates the maximum most efficient rate limit per reader that can be applied using `limitedreader`, and returns any unnecessary bandwidth to the _free-bandwidth_ pool.
+8. Bandwidth allocations are applied to each reader via [`imadmon/limitedreader`](https://github.com/imadmon/limitedreader).
+9. When streams close or idle, their unused bandwidth is redistributed to others instantly.
 
 #### This Model Ensures:
 - **Fair throughput** across all active readers.
@@ -135,26 +136,38 @@ Each stream is independent yet cooperatively limited by a single global controll
 | `NewBandwidthController(bandwidth int64, opts ...Option)`                      | Create a new controller with the given global cap.              |
 | `AppendStreamReader(src io.Reader, expectedSizeBytes int64) (io.ReadCloser, error)` | Wraps a reader with adaptive bandwidth control.                 |
 | `UpdateBandwidth(bandwidth int64) error`                                                   | Update the global cap **instantly**.                        |
-| `GetTotalStreamsInSystem() int64`                                                   | Total number of streams ever registered.                        |
-| `GetCurrentStreamsInSystem() int64`                                                 | Currently **active** streams.                                       |
-| `GetStatistics() map[GroupType]BandwidthStats`                                      | Returns real-time per-group statistics.                         |
+| `Stats() ControllerStats`                                      | Returns real-time statistics.                         |
 | `ControllerConfig`                                                                  | Configuration struct for tuning scheduler intervals and shares. |
 
 </br>
 
 ## Monitoring
 
-The controller provides several functions to give you **full transparency** into bandwidth allocation and runtime behavior:
+The controller continuously tracks internal metrics and exposes them via `Stats()` method.
+Provides **full transparency** into bandwidth allocation, stream activity, and scheduler behavior.
 
-- `GetTotalStreamsInSystem()` - total number of streams created since startup.
-- `GetCurrentStreamsInSystem()` - number of currently active streams.
-- `GetStatistics()` - returns map[GroupType]BandwidthStats with per-group statistics.
+### ControllerStats
+System statistics as well as per-group statistics. </br>
+`Stats()` returns a `ControllerStats` struct, giving you access to the real-time bandwidth metrics:
 
-### Statistics
+``` Go
+type ControllerStats struct {
+	TotalStreams  int64
+	OpenStreams   int64
+	ActiveStreams int64
+	GroupsStats   map[GroupType]*BandwidthStats
+}
+```
+
+- **TotalStreams** - total number of streams created since controller startup.
+- **OpenStreams** - number of streams currently in the system (not yet closed).
+- **ActiveStreams** - number of streams that are actively reading.
+- **GroupsStats** - per-group statistics.
+
+### BandwidthStats
 Per-group statistics let you monitor reserved bandwidth, actual allocations, and per-pulse activity.
-</br>
-The following structs show the data returned by `GetStatistics()`, giving you access to real-time bandwidth metrics.
-```Go
+
+``` Go
 type BandwidthStats struct {
     ReservedBandwidth          int64
     AllocatedBandwidth         int64
@@ -162,7 +175,21 @@ type BandwidthStats struct {
     CurrentPulseIntervalSize   int64
     PulseIntervalsStats        *PulsesStats // 1 second stats
 }
+```
 
+- **ReservedBandwidth** - bandwidth guaranteed from configuration or group minimums.
+- **AllocatedBandwidth** - bandwidth actually granted after redistribution and `limitedreader` optimizations.
+- **CurrentPulseIntervalAmount** - number of streams processed during the current update cycle.
+- **CurrentPulseIntervalSize** - counter for the current update cycle total streams size.
+- **PulseIntervalsStats** - rolling per-second stats, tracking how many streams and bytes were added across recent pulses.
+
+### Pulse Interval
+
+Rolling window of recent pulse intervals.
+Allocations are updated periodically by the controller’s scheduler.
+The default rolling window covers 5 scheduler pulses (1 second with 200 ms intervals), can be changed via `SchedulerInterval` in config.
+
+``` Go
 const PulsesIntervalsAmount = 5
 
 type PulsesStats struct {
@@ -178,17 +205,6 @@ type PulseStats struct {
     NewStreamsTotalSize int64
 }
 ```
-- **ReservedBandwidth** - bandwidth guaranteed from configuration or group minimums.
-- **AllocatedBandwidth** - bandwidth actually granted after redistribution and `limitedreader` optimizations.
-- **CurrentPulseIntervalAmount** - number of streams processed during the current update cycle.
-- **CurrentPulseIntervalSize** - counter for the current update cycle total streams size.
-- **PulseIntervalsStats** - rolling per-second stats, tracking how many streams and bytes were added across recent pulses.
-
-### Pulse Interval
-
-Rolling window of recent pulse intervals.
-Allocations are updated periodically by the controller’s scheduler.
-The default rolling window covers 5 scheduler pulses (1 second with 200 ms intervals), can be changed via `SchedulerInterval` in config.
 
 </br>
 
@@ -199,6 +215,7 @@ The library provides a configuration struct `ControllerConfig`, but **most users
 ``` Go
 type ControllerConfig struct {
     SchedulerInterval               *time.Duration
+	StreamIdleTimeout               *time.Duration
     MinGroupBandwidthPercentShare   map[GroupType]float64 // values in [0.01, 1.00]
     MinStreamBandwidthInBytesPerSec map[GroupType]int64
 }
@@ -207,12 +224,13 @@ type ControllerConfig struct {
 | Field                             | Default | Description                                                |
 | --------------------------------- | ------- | ---------------------------------------------------------- |
 | `SchedulerInterval`               | 200 ms  | How often the scheduler redistributes bandwidth allocation and updates statistics. |
+| `StreamIdleTimeout`               | 100 ms  | Duration of inactivity after which a stream is considered idle. |
 | `MinGroupBandwidthPercentShare`   | KB: 5% </br> MB: 5% </br> GB: 5% </br> TB: 5% | Minimum guaranteed bandwidth share per group (if has at least one active stream).              |
 | `MinStreamBandwidthInBytesPerSec` | KB: 0.1 KiB/s </br> MB: 0.1 MiB/s </br> GB: 0.1 GiB/s </br> TB: 0.1 TiB/s | Minimum guaranteed rate per stream.                        |
 
 
 Values use **binary multiples** (1 KiB = 1024 bytes).
-If minimums exceed the total cap, the controller automatically normalizes them proportionally.
+If minimums exceed the total bandwidth cap, the controller automatically normalizes them proportionally.
 
 </br>
 

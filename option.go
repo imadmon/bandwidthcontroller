@@ -19,6 +19,10 @@ func WithConfig(cfg ControllerConfig) Option {
 			bc.cfg.SchedulerInterval = cfg.SchedulerInterval
 		}
 
+		if cfg.StreamIdleTimeout != nil {
+			bc.cfg.StreamIdleTimeout = cfg.StreamIdleTimeout
+		}
+
 		if cfg.MinGroupBandwidthPercentShare != nil {
 			for g, v := range cfg.MinGroupBandwidthPercentShare {
 				bc.cfg.MinGroupBandwidthPercentShare[g] = v

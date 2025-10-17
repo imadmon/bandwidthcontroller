@@ -2,44 +2,60 @@ package bandwidthcontroller
 
 import (
 	"io"
+	"sync/atomic"
+	"time"
 
 	"github.com/imadmon/limitedreader"
 )
 
 type StreamReadCloser struct {
-	reader   *limitedreader.LimitedReader
-	callback func() // called on Close
+	reader             *limitedreader.LimitedReader
+	callback           func() // called on Close
+	lastReadEndingTime atomic.Int64
+	Active             atomic.Bool
+	Reading            atomic.Bool
 }
 
 func NewStreamReadCloser(r io.ReadCloser, limit int64, callback func()) *StreamReadCloser {
-	return &StreamReadCloser{
+	sr := &StreamReadCloser{
 		reader:   limitedreader.NewLimitedReadCloser(r, limit),
 		callback: callback,
 	}
+
+	sr.Active.Store(true)
+	sr.Reading.Store(false)
+	sr.lastReadEndingTime.Store(time.Now().UnixNano())
+	return sr
 }
 
-func (fr *StreamReadCloser) Read(p []byte) (n int, err error) {
-	return fr.reader.Read(p)
+func (sr *StreamReadCloser) Read(p []byte) (n int, err error) {
+	sr.Active.Store(true)
+	sr.Reading.Store(true)
+	n, err = sr.reader.Read(p)
+	sr.Reading.Store(false)
+	sr.lastReadEndingTime.Store(time.Now().UnixNano())
+	return
 }
 
-func (fr *StreamReadCloser) Close() error {
-	err := fr.reader.Close()
+func (sr *StreamReadCloser) Close() error {
+	sr.Active.Store(false)
+	err := sr.reader.Close()
 
-	if fr.callback != nil {
-		fr.callback()
+	if sr.callback != nil {
+		sr.callback()
 	}
 
 	return err
 }
 
-func (fr *StreamReadCloser) UpdateRateLimit(newLimit int64) {
-	fr.reader.UpdateLimit(newLimit)
+func (sr *StreamReadCloser) UpdateRateLimit(newLimit int64) {
+	sr.reader.UpdateLimit(newLimit)
 }
 
-func (fr *StreamReadCloser) GetRateLimit() int64 {
-	return fr.reader.GetLimit()
+func (sr *StreamReadCloser) RateLimit() int64 {
+	return sr.reader.GetLimit()
 }
 
-func (fr *StreamReadCloser) GetBytesRead() int64 {
-	return fr.reader.GetTotalRead()
+func (sr *StreamReadCloser) BytesRead() int64 {
+	return sr.reader.GetTotalRead()
 }

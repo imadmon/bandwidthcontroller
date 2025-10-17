@@ -11,9 +11,18 @@ const (
 	TB GroupType = 1024 * GB
 )
 
-type BandwidthGroup map[int64]*Stream
+type StreamID int64
+
+type BandwidthGroup map[StreamID]*Stream
 
 var InvalidBandwidth = errors.New("invalid bandwidth")
+
+type ControllerStats struct {
+	TotalStreams  int64
+	OpenStreams   int64
+	ActiveStreams int64
+	GroupsStats   map[GroupType]*BandwidthStats
+}
 
 type BandwidthStats struct {
 	ReservedBandwidth          int64
@@ -26,4 +35,17 @@ type BandwidthStats struct {
 type bandwidthInsights struct {
 	bandwidthLeft           int64
 	leftGroupsRemainingSize int64
+	totalActiveStreams      int64
+	weights                 map[GroupType]streamWeights
+}
+
+type streamWeights struct {
+	weights            []streamWeight
+	totalWeights       float64
+	totalRemainingSize int64
+}
+
+type streamWeight struct {
+	id     StreamID
+	weight float64
 }
