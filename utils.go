@@ -9,6 +9,8 @@ import (
 
 var InvalidStreamSize = errors.New("invalid stream size")
 
+const limitedreaderPulseDivider = 1000 / limitedreader.DefaultReadIntervalMilliseconds
+
 func isContextCancelled(ctx context.Context) bool {
 	select {
 	case <-ctx.Done():
@@ -20,12 +22,16 @@ func isContextCancelled(ctx context.Context) bool {
 
 // returns the bandwidth required for completing the stream in one pulse
 func getStreamMaxBandwidth(size int64) int64 {
-	return size * (1000 / limitedreader.DefaultReadIntervalMilliseconds)
+	max := size * limitedreaderPulseDivider
+	if max < size { // overflow
+		return size
+	}
+	return max
 }
 
 // removing deviation from determenistic ratelimit time calculations
 func getStreamBandwidthWithoutDeviation(bandwidth int64) int64 {
-	return bandwidth - bandwidth%(1000/limitedreader.DefaultReadIntervalMilliseconds)
+	return bandwidth - bandwidth%limitedreaderPulseDivider
 }
 
 func getGroup(size int64) (GroupType, error) {

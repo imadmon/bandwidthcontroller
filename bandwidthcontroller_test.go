@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func TestBandwidthControllerMultipleSameSizeStreams(t *testing.T) {
+func TestMultipleSameSizeStreams(t *testing.T) {
 	const streamSize = 100 * 1020 // 100 KB (1020 for divinding by 3 evenly)
 	const streamsAmount = 4
 	const bandwidth = streamSize // will take (streamSize * streamsAmount)/bandwidth seconds
@@ -37,8 +37,8 @@ func TestBandwidthControllerMultipleSameSizeStreams(t *testing.T) {
 	validateEmpty(t, bc)
 }
 
-func TestBandwidthControllerRateLimit(t *testing.T) {
-	const streamSize = 100 * 1024 // 100 KB
+func TestRateLimit(t *testing.T) {
+	const streamSize = 100 << 10 // 100 KB
 	const partsAmount = 3
 	const bandwidth = streamSize / partsAmount // streamSize/partsAmount bytes per second
 
@@ -51,9 +51,9 @@ func TestBandwidthControllerRateLimit(t *testing.T) {
 	validateEmpty(t, bc)
 }
 
-func TestBandwidthControllerMaxStreamBandwidth(t *testing.T) {
-	const smallStreamSize = 1 * 1024          // 1 KB
-	const largeStreamSize = 300 * 1024 * 1024 // 300 MB
+func TestMaxStreamBandwidth(t *testing.T) {
+	const smallStreamSize = 1 << 10   // 1 KB
+	const largeStreamSize = 300 << 20 // 300 MB
 	smallStreamMaxBandwidth := getStreamMaxBandwidth(smallStreamSize)
 	largeStreamMaxBandwidth := getStreamMaxBandwidth(largeStreamSize)
 	bandwidth := (smallStreamMaxBandwidth * 2) + largeStreamMaxBandwidth // total
@@ -73,8 +73,8 @@ func TestBandwidthControllerMaxStreamBandwidth(t *testing.T) {
 	validateBandwidth(t, "third add: largeStream1", largeStream1.RateLimit(), largeStreamMaxBandwidth)
 }
 
-func TestBandwidthControllerFreeBandwidthAllocation(t *testing.T) {
-	const streamSize = 100 * 1024 // 100 KB
+func TestFreeBandwidthAllocation(t *testing.T) {
+	const streamSize = 100 << 10 // 100 KB
 	const bandwidth = streamSize
 	// this will divide unevenly since 102400 doesn't divide evenly to 3 and we consider the limitedreader deviation
 	expectedBandwidthAmounts := map[int64]int{
@@ -106,9 +106,9 @@ func TestBandwidthControllerFreeBandwidthAllocation(t *testing.T) {
 	}
 }
 
-func TestBandwidthControllerAppendStreamsBandwidthAllocation(t *testing.T) {
-	const smallStreamSize = 1 * 1024          // 1 KB
-	const largeStreamSize = 300 * 1024 * 1024 // 300 MB
+func TestAppendStreamsBandwidthAllocation(t *testing.T) {
+	const smallStreamSize = 1 << 10   // 1 KB
+	const largeStreamSize = 300 << 20 // 300 MB
 	const bandwidth = (smallStreamSize * 2) + largeStreamSize
 	expectedSmallStreamBandwidth := getStreamMaxBandwidth(smallStreamSize)
 	expectedLargeStreamBandwidth := getStreamBandwidthWithoutDeviation(bandwidth - (expectedSmallStreamBandwidth * 2))
@@ -154,9 +154,9 @@ func TestBandwidthControllerAppendStreamsBandwidthAllocation(t *testing.T) {
 	assertExpectedResult("large middle")
 }
 
-func TestBandwidthControllerStreamsCloseBandwidthAllocation(t *testing.T) {
-	const smallStreamSize = 1 * 1024          // 1 KB
-	const largeStreamSize = 300 * 1024 * 1024 // 300 MB
+func TestStreamsCloseBandwidthAllocation(t *testing.T) {
+	const smallStreamSize = 1 << 10   // 1 KB
+	const largeStreamSize = 300 << 20 // 300 MB
 	const bandwidth = ((smallStreamSize * 2) + largeStreamSize)
 	expectedSmallStreamBandwidth := getStreamMaxBandwidth(smallStreamSize)
 
@@ -211,7 +211,7 @@ func TestBandwidthControllerStreamsCloseBandwidthAllocation(t *testing.T) {
 	validateEmpty(t, bc)
 }
 
-func TestBandwidthControllerZeroBandwidthBehavior(t *testing.T) {
+func TestZeroBandwidthBehavior(t *testing.T) {
 	bc := NewBandwidthController(0)
 	_, err := bc.AppendStreamReader(nil, 1024)
 	if err != InvalidBandwidth {
@@ -219,7 +219,7 @@ func TestBandwidthControllerZeroBandwidthBehavior(t *testing.T) {
 	}
 }
 
-func TestBandwidthControllerZeroStreamSizeBehavior(t *testing.T) {
+func TestZeroStreamSizeBehavior(t *testing.T) {
 	bc := NewBandwidthController(1024)
 	_, err := bc.AppendStreamReader(nil, 0)
 	if err != InvalidStreamSize {
@@ -227,7 +227,7 @@ func TestBandwidthControllerZeroStreamSizeBehavior(t *testing.T) {
 	}
 }
 
-func TestBandwidthControllerContextCancelation(t *testing.T) {
+func TestContextCancelation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	bc := NewBandwidthController(1024, WithContext(ctx))
 
@@ -251,7 +251,7 @@ func TestBandwidthControllerContextCancelation(t *testing.T) {
 	validateEmpty(t, bc)
 }
 
-func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
+func TestWithConfigMergeDefaults(t *testing.T) {
 	defaults := defaultConfig()
 
 	cases := []struct {
@@ -420,7 +420,7 @@ func TestBandwidthControllerWithConfigMergeDefaults(t *testing.T) {
 	}
 }
 
-func TestBandwidthControllerCalculateAndSortGroupsActiveStreamsWeights(t *testing.T) {
+func TestCalculateAndSortGroupsActiveStreamsWeights(t *testing.T) {
 	cases := []struct {
 		name                               string
 		expectedOverallGroupsRemainingSize int64
@@ -540,7 +540,7 @@ func validateWeightsPerGroup(t *testing.T, group GroupType, groupName string,
 	}
 }
 
-func TestBandwidthControllerCalculateAndSortActiveStreamsWeights(t *testing.T) {
+func TestCalculateAndSortActiveStreamsWeights(t *testing.T) {
 	bc := NewBandwidthController(1024)
 	streams := make(BandwidthGroup)
 
@@ -569,7 +569,7 @@ func TestBandwidthControllerCalculateAndSortActiveStreamsWeights(t *testing.T) {
 	}
 }
 
-func TestBandwidthControllerCalculateAndSortActiveStreamsWeightsEmptyStreams(t *testing.T) {
+func TestCalculateAndSortActiveStreamsWeightsEmptyStreams(t *testing.T) {
 	bc := NewBandwidthController(1024)
 	streams := make(BandwidthGroup)
 	streamsAmount := 5
@@ -598,7 +598,7 @@ func TestBandwidthControllerCalculateAndSortActiveStreamsWeightsEmptyStreams(t *
 	}
 }
 
-func TestBandwidthControllerCalculateAndSortActiveStreamsWeightsInactiveStreams(t *testing.T) {
+func TestCalculateAndSortActiveStreamsWeightsInactiveStreams(t *testing.T) {
 	bc := NewBandwidthController(1024)
 	streams := make(BandwidthGroup)
 	streamsAmount := 5
@@ -628,7 +628,7 @@ func TestBandwidthControllerCalculateAndSortActiveStreamsWeightsInactiveStreams(
 	}
 }
 
-func TestBandwidthControllerCalculateAndSortActiveStreamsWeightsActivationTimeoutStreams(t *testing.T) {
+func TestCalculateAndSortActiveStreamsWeightsActivationTimeoutStreams(t *testing.T) {
 	bc := NewBandwidthController(1024)
 	streams := make(BandwidthGroup)
 	streamsAmount := 5
@@ -659,8 +659,8 @@ func TestBandwidthControllerCalculateAndSortActiveStreamsWeightsActivationTimeou
 	}
 }
 
-func TestBandwidthControllerStableThroughput(t *testing.T) {
-	const streamSize = 1 * 1024 // 1 KB
+func TestStableThroughput(t *testing.T) {
+	const streamSize = 1 << 10 // 1 KB
 	const streamAmountPerSecond = 200
 	const totalStreamAmount = 1000
 	const bandwidth = streamSize * 100 // will take (streamSize * totalStreamAmount)/bandwidth seconds
@@ -690,15 +690,15 @@ func TestBandwidthControllerStableThroughput(t *testing.T) {
 	assertReadTimes(t, elapsed, expectedTime, expectedTime+1)
 }
 
-func TestBandwidthControllerAdaptiveThroughput(t *testing.T) {
-	const streamSize = 1 * 1024 // 1 KB
+func TestAdaptiveThroughput(t *testing.T) {
+	const streamSize = 1 << 10 // 1 KB
 	const timeToChangeStreamSizeInSeconds = 2
-	const newStreamSize = 3 * 1024 // 3 KB
+	const newStreamSize = 3 << 10 // 3 KB
 	const streamAmountPerSecond = 200
 	const timeToChangeStreamAmountInSeconds = 1
 	const newStreamAmountPerSecond = 100
 	const timeToFinishInSeconds = 2
-	const bandwidth = 100 * 1024 // 100 KB
+	const bandwidth = 100 << 10 // 100 KB
 	const expectedTotalStreamAmount = (streamAmountPerSecond*
 		(timeToChangeStreamSizeInSeconds+timeToChangeStreamAmountInSeconds) +
 		newStreamAmountPerSecond*timeToFinishInSeconds)
@@ -735,11 +735,11 @@ func TestBandwidthControllerAdaptiveThroughput(t *testing.T) {
 	assertReadTimes(t, elapsed, expectedTime, expectedTime+1)
 }
 
-func TestBandwidthControllerAdaptiveBandwidth(t *testing.T) {
-	const streamSize = 1 * 1024 // 1 KB
+func TestAdaptiveBandwidth(t *testing.T) {
+	const streamSize = 1 << 10 // 1 KB
 	const streamAmountPerSecond = 200
-	const bandwidth = 100 * 1024    // 100 KB
-	const newBandwidth = 200 * 1024 // 200 KB
+	const bandwidth = 100 << 10    // 100 KB
+	const newBandwidth = 200 << 10 // 200 KB
 	const timeToChangeBandwidthInSeconds = 2
 	const timeToFinishInSeconds = 2
 	const expectedTotalStreamAmount = streamAmountPerSecond * (timeToChangeBandwidthInSeconds + timeToFinishInSeconds)
@@ -771,14 +771,14 @@ func TestBandwidthControllerAdaptiveBandwidth(t *testing.T) {
 	assertReadTimes(t, elapsed, expectedTime, expectedTime+1)
 }
 
-func TestBandwidthControllerBurstRecoveryThroughput(t *testing.T) {
-	const streamSize = 1 * 1024 // 1 KB
+func TestBurstRecoveryThroughput(t *testing.T) {
+	const streamSize = 1 << 10 // 1 KB
 	const streamAmountPerSecond = 200
 	const burstStreamAmountPerSecond = 1000
 	const timeToBurstInSeconds = 2
 	const timeOfBurstInSeconds = 1
 	const timeToFinishInSeconds = 2
-	const bandwidth = 100 * 1024 // 100 KB
+	const bandwidth = 100 << 10 // 100 KB
 	const expectedTotalStreamAmount = (streamAmountPerSecond*
 		(timeToBurstInSeconds+timeToFinishInSeconds) +
 		burstStreamAmountPerSecond*timeOfBurstInSeconds)
@@ -813,8 +813,8 @@ func TestBandwidthControllerBurstRecoveryThroughput(t *testing.T) {
 	assertReadTimes(t, elapsed, expectedTime, expectedTime+1)
 }
 
-func TestBandwidthControllerStallingReader(t *testing.T) {
-	const streamSize = 100 * 1024 // 100 KB
+func TestStallingReader(t *testing.T) {
+	const streamSize = 100 << 10 // 100 KB
 	const partsAmount = 3
 	const bandwidth = streamSize / 3 // streamSize/partsAmount bytes per second
 	const timeToStallInSeconds = 1

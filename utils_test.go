@@ -1,6 +1,7 @@
 package bandwidthcontroller
 
 import (
+	"math"
 	"testing"
 )
 
@@ -55,5 +56,15 @@ func TestUtilsGetGroup(t *testing.T) {
 				t.Fatalf("error mismatch\ngot: %v\nexpected: %v", err, c.expectedErr)
 			}
 		})
+	}
+}
+
+func TestUtilsGetStreamMaxBandwidth(t *testing.T) {
+	if getStreamMaxBandwidth(1) != 20 {
+		t.Fatalf("got unexpected MaxBandwidth for size 1, got: %d expected: %d", getStreamMaxBandwidth(1), 20)
+	}
+
+	if getStreamMaxBandwidth(math.MaxInt64) != math.MaxInt64 {
+		t.Fatalf("got unexpected MaxBandwidth for size math.MaxInt64, got: %d expected: %d", getStreamMaxBandwidth(math.MaxInt64), math.MaxInt64)
 	}
 }
